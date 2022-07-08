@@ -1,0 +1,27 @@
+MRSM_ROOT_DIR: "root/"             ### Defaults to 'root/'.
+sync:
+  pipes:
+    - connector: "plugin:noaa"
+      metric: "weather"
+      location: null 
+      instance: "sql:compose"      ### Define a temporary connector.
+  schedule: "hourly"
+
+plugins:
+  - "noaa"
+
+
+### The keys below are patched on top of the generated config files.
+config:
+  meerschaum:
+    connectors:
+      sql:
+        compose:
+          username: ${MY_USERNAME}  ### Use --env-file to specify a different environment file
+          password: ${MY_PASSWORD}  ### than the default '.env'.
+  stack:
+    docker-compose.yaml:
+      services:
+        db:
+          ports:
+            - "5433:5432"
