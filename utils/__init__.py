@@ -19,7 +19,7 @@ def run_mrsm_command(
     ) -> subprocess.Popen:
     from plugins.compose.utils.debug import get_debug_args
     from plugins.compose.utils.config import get_env_dict, write_patch
-    write_patch(compose_config, debug=debug)
+    #  write_patch(compose_config, debug=debug)
     as_proc = True if 'as_proc' not in kw else kw.pop('as_proc')
     return run_python_package(
         'meerschaum', args + get_debug_args(debug),

@@ -6,6 +6,7 @@
 Read the configuration files.
 """
 
+import os
 import pathlib
 import json
 from meerschaum.utils.typing import Optional, Union, Dict, Any, List
@@ -66,6 +67,7 @@ def read_compose_config(
     if debug:
         dprint("Compose config:")
         pprint(compose_config)
+    compose_config['__file__'] = compose_file_path
     return compose_config
 
 
@@ -73,7 +75,11 @@ def get_root_dir_path(compose_config: Dict[str, Any]) -> pathlib.Path:
     """
     Return the absolute path for the configured root directory.
     """
-    return pathlib.Path(compose_config.get('MRSM_ROOT_DIR', './root')).resolve()
+    old_cwd = os.getcwd()
+    os.chdir(compose_config['__file__'].parent)
+    path = pathlib.Path(compose_config.get('MRSM_ROOT_DIR', './root')).resolve()
+    os.chdir(old_cwd)
+    return path
 
 
 def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -82,7 +88,7 @@ def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:
     """
     return {
         'MRSM_ROOT_DIR': str(get_root_dir_path(compose_config)),
-        #  'MRSM_CONFIG': json.dumps(compose_config.get('config', {})),
+        'MRSM_PATCH': json.dumps(compose_config.get('config', {})),
     }
 
 
@@ -91,16 +97,7 @@ def write_patch(compose_config: Dict[str, Any], debug: bool = False) -> None:
     Write the patch files to the configured patch directory.
     """
     from meerschaum.config._edit import write_config
-    root_dir_path = get_root_dir_path(compose_config)
     patch_dir_path = root_dir_path / 'permanent_patch_config'
-    if not root_dir_path.exists():
-        root_dir_path.mkdir(exist_ok=True)
-        init_root(compose_config, debug=debug)
-        info(
-            "Initializing Meerschaum root directory:\n    "
-            + f"{root_dir_path}\n    "
-            + "This should only take a few seconds..."
-        )
     patch_dir_path.mkdir(exist_ok=True)
     print("Writing config")
     write_config(compose_config.get('config', {}), patch_dir_path, debug=debug)
@@ -108,6 +105,15 @@ def write_patch(compose_config: Dict[str, Any], debug: bool = False) -> None:
 
 def init_root(compose_config: Dict[str, Any], debug: bool = False) -> bool:
     from plugins.compose.utils import run_mrsm_command
+    root_dir_path = get_root_dir_path(compose_config)
+    if not root_dir_path.exists():
+        root_dir_path.mkdir(exist_ok=True)
+        info(
+            "Initializing Meerschaum root directory:\n    "
+            + f"{root_dir_path}\n    "
+            + "This should only take a few seconds..."
+        )
+
     return run_mrsm_command(
         ['show', 'version'], compose_config, debug=debug,
     ).wait() == 0
