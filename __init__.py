@@ -9,23 +9,28 @@ Manage Meerschaum environments with Compose.
 __version__ = '0.0.1'
 required = ['python-dotenv', 'envyaml']
 
+import json
 import pathlib
-from meerschaum.utils.typing import SuccessTuple, Optional, List
+from meerschaum.utils.typing import SuccessTuple, Optional, List, Dict, Union, Any
 from meerschaum.utils.warnings import warn, info
+from meerschaum.utils.debug import dprint
+from meerschaum.utils.formatting import pprint
 from meerschaum.plugins import add_plugin_argument
 
 add_plugin_argument(
+    '--file', '--compose-file', type=pathlib.Path, help=(
+        "Specify an alternate compose file \n(default: mrsm-compose.yaml)."
+    ),
+)
+add_plugin_argument(
     '--env-file', type=pathlib.Path, help=(
-        "Specify an alternate environment file."
+        "Specify an alternate environment file \n(default: .env)."
     ),
 )
 
-COMPOSE_KEYS = [
-    'MRSM_ROOT_DIR', 'plugins', 'sync', 'config',
-]
-
 def compose(
         action: Optional[List] = None,
+        file: Optional[pathlib.Path] = None,
         env_file: Optional[pathlib.Path] = None,
         debug: bool = False,
         **kw
@@ -33,50 +38,35 @@ def compose(
     """
     Manage an isolated Meerschaum environment with Meerschaum Compose.
     """
-    import json
-    from dotenv import load_dotenv
-    load_dotenv(env_file)
-    try:
-        compose_file_path = pathlib.Path(action[0]).resolve()
-    except Exception as e:
-        compose_file_path = None
+    from plugins.compose.utils.config import infer_compose_file_path, read_compose_config, init_env
+    init_env(env_file)
+    compose_file_path = infer_compose_file_path(file)
     if compose_file_path is None:
-        compose_file_path = pathlib.Path('mrsm-compose.yaml').resolve()
-    if not compose_file_path.exists():
-        return False, f"Compose file does not exist: {compose_file_path}"
-
-    from envyaml import EnvYAML
-    env = EnvYAML(compose_file_path)
-    compose_config = {k: env[k] for k in COMPOSE_KEYS if k in env}
-    root_dir_path = pathlib.Path(compose_config.get('MRSM_ROOT_DIR', './root')).resolve()
-    if not root_dir_path.exists():
-        root_dir_path.mkdir(exist_ok=True)
-        info(
-            "Initializing Meerschaum root directory:\n    "
-            + f"{root_dir_path}\n    "
-            + "This should only take a few seconds..."
+        return False, (
+            "No compose file could be found.\n    "
+            + "Create a file mrsm-compose.yaml or specify a path with `--file`."
         )
-
-    debug_args = ['--debug'] if debug else []
-    mrsm_env_dict = {
-        'MRSM_ROOT_DIR': str(root_dir_path),
-        'MRSM_PATCH': json.dumps(compose_config.get('config', {})),
-    }
-
-    from meerschaum.utils.packages import run_python_package
-    proc = run_python_package(
-        'meerschaum', ['show', 'version'] + debug_args,
-        env=mrsm_env_dict,
-        capture_output=False, as_proc=True,
-        debug=debug,
-    )
-    proc = run_python_package(
-        'meerschaum', ['show', 'plugins', '--nopretty'] + debug_args,
-        env=mrsm_env_dict,
-        capture_output=False, as_proc=True,
-        debug=debug,
+    compose_config = read_compose_config(compose_file_path, debug=debug)
+    if not action or action[0] not in SUBACTIONS:
+        return False, (
+            "Please choose one of the following for `mrsm compose`:"
+            + '\n  - '.join(sorted(SUBACTIONS.keys()))
+        )
+    return SUBACTIONS[action[0]](
+        compose_config,
+        action = action[1:],
+        file = file,
+        env_file = env_file,
+        debug = debug,
+        **kw
     )
 
 
-def _compose_up():
-    pass
+from .subactions import (
+    compose_up as _compose_up,
+    compose_down as _compose_down,
+)
+SUBACTIONS = {
+    'up': _compose_up,
+    'down': _compose_down,
+}

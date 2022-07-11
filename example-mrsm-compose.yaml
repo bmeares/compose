@@ -20,6 +20,8 @@ config:
           username: ${MY_USERNAME}  ### Use --env-file to specify a different environment file
           password: ${MY_PASSWORD}  ### than the default '.env'.
   stack:
+    # project_name: "foo"
+    filetype: yaml
     docker-compose.yaml:
       services:
         db:
