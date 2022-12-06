@@ -13,14 +13,14 @@ Entrypoint to the `compose down` command.
 from meerschaum.utils.typing import SuccessTuple, Dict, Any
 
 def compose_down(
-        compose_config: Dict[str, Any],
         debug: bool = False,
         **kw
     ) -> SuccessTuple:
     """
     Bring up the configured Meerschaum stack.
     """
-    from plugins.compose.utils import run_mrsm_command
+    from plugins.compose.utils import run_mrsm_command, init
+    compose_config = init(debug=debug, **kw)
     if debug:
         run_mrsm_command(
             ['show', 'config', 'stack'],
@@ -30,7 +30,7 @@ def compose_down(
         )
 
     run_mrsm_command(
-        ['stack', 'down'],
+        ['stop', 'jobs', '-f'],
         compose_config,
         capture_output = False,
         debug = debug,

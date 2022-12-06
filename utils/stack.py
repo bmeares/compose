@@ -17,7 +17,7 @@ def get_project_name(compose_config: Dict[str, Any]) -> str:
     Determine the `docker-compose` project name.
     """
     project_name = compose_config.get('stack', {}).get(
-        'project_name', pathlib.Path(os.getcwd()).stem
+        'project_name', compose_config['__file__'].parent.stem
     )
     if project_name == 'mrsm':
         raise Exception(
