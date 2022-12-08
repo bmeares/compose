@@ -1,6 +1,6 @@
 # Meerschaum Compose
 
-The `compose` plugin does the same for Meerschaum as Docker Compose did for Docker: with Meerschaum compose, you can consolidate everything into a single YAML file ― that includes all of the pipes and configuration needed for your project!
+The `compose` plugin does the same for Meerschaum as Docker Compose did for Docker: with Meerschaum Compose, you can consolidate everything into a single YAML file ― that includes all of the pipes and configuration needed for your project!
 
 ## Getting Started
 
@@ -60,10 +60,10 @@ Meerschaum Compose is inspired by Docker Compose, so if you're familiar with tha
 
 Command | Description | Useful Flags
 --|--|--
-`mrsm compose up` | Bring up the syncing jobs (process per instance) | `-f`: Follow the logs once the jobs are running.
-`mrsm compose down` | Take down the syncing jobs. | `-v`: Drop the pipes ("volumes").
-`mrsm compose logs` | Follow the jobs' logs. | `--nopretty`: Print the logs files instead of following.
-`mrsm compose ps` | Show the running status of background jobs.
+`compose up` | Bring up the syncing jobs (process per instance) | `-f`: Follow the logs once the jobs are running.
+`compose down` | Take down the syncing jobs. | `-v`: Drop the pipes ("volumes").
+`compose logs` | Follow the jobs' logs. | `--nopretty`: Print the logs files instead of following.
+`compose ps` | Show the running status of background jobs.
 
 Meerschaum Compose creates an isolated environment for your project, and you can inherit all of your project's configuration by prefixing any Meerschaum command with `compose`. Consider the following:
 
