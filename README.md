@@ -13,7 +13,7 @@ The `compose` plugin does the same for Meerschaum as Docker Compose did for Dock
     ```bash
     mkdir awesome-sauce && cd awesome-sauce
     ```
-3. Paste this template into a file `mrsm-config.yaml`:
+3. Paste this template into a file `mrsm-compose.yaml`:
     ```yaml
     sync:
       schedule: "every 30 seconds"
