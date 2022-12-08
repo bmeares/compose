@@ -1,0 +1,62 @@
+sync:
+  schedule: "every 20 seconds"
+  # min_seconds: 10
+  timeout_seconds: 20
+  pipes:
+    - connector: "plugin:stress"
+      metric: "test"
+
+    - connector: "sql:demo"
+      metric: "test"
+      target: "stress_test"
+      parameters:
+        query: "SELECT * FROM plugin_stress_test"
+      columns:
+        datetime: "datetime"
+        id: "id"
+
+    - connector: "sql:demo"
+      metric: "test"
+      location: "1"
+      instance: "sql:local"
+      parameters:
+        query: "SELECT * FROM stress_test WHERE id = 1"
+      columns:
+        datetime: "datetime"
+        id: "id"
+
+    - connector: "sql:demo"
+      metric: "test"
+      location: "2_3"
+      instance: "sql:secret"
+      parameters:
+        query: "SELECT * FROM stress_test WHERE id IN ('2', '3')"
+      columns:
+        datetime: "datetime"
+        id: "id"
+
+    # - connector: "sql:demo"
+      # metric: "test"
+      # location: "3"
+      # instance: "sql:secret"
+      # parameters:
+        # query: "SELECT * FROM stress_test WHERE id = 3"
+      # columns:
+        # datetime: "datetime"
+        # id: "id"
+
+
+plugins:
+  - "stress"
+
+config:
+  meerschaum:
+    instance: "sql:demo"
+    connectors:
+      sql:
+        demo:
+          database: "demo.db"
+          flavor: "sqlite"
+        secret:
+          uri: "${SECRET_URI}"
+        local: "MRSM{meerschaum:connectors:sql:local}"

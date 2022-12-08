@@ -9,14 +9,16 @@ Read the configuration files.
 import os
 import pathlib
 import json
+import pickle
 from meerschaum.utils.typing import Optional, Union, Dict, Any, List
 from meerschaum.utils.warnings import warn, info
 from meerschaum.utils.debug import dprint
 from meerschaum.utils.formatting import pprint
 from meerschaum.utils.packages import run_python_package
 
-COMPOSE_KEYS = ['root_dir', 'plugins', 'sync', 'config']
+COMPOSE_KEYS = ['root_dir', 'plugins_dir', 'plugins', 'sync', 'config', 'environment']
 DEFAULT_COMPOSE_FILE_CANDIDATES = ['mrsm-compose.yaml', 'mrsm-compose.yml']
+CONFIG_METADATA: Dict[str, Any] = {}
 
 def infer_compose_file_path(file: Optional[pathlib.Path] = None) -> Union[pathlib.Path, None]:
     """
@@ -61,23 +63,77 @@ def read_compose_config(
     """
     from plugins.compose.utils.stack import ensure_project_name
     from envyaml import EnvYAML
-    env = EnvYAML(compose_file_path)
-    compose_config = {k: env[k] for k in COMPOSE_KEYS if k in env}
+    from meerschaum.config._read_config import search_and_substitute_config
+    env = EnvYAML(compose_file_path, strict=True)
+    compose_config = search_and_substitute_config({k: env[k] for k in COMPOSE_KEYS if k in env})
     compose_config['__file__'] = compose_file_path
+    compose_config['root_dir'] = get_dir_path(compose_config, 'root')
+    plugins_dir_path = get_dir_path(compose_config, 'plugins')
+    if not plugins_dir_path.exists():
+        plugins_dir_path.mkdir(parents=True, exist_ok=True)
+    compose_config['plugins_dir'] = plugins_dir_path
+
     ensure_project_name(compose_config)
     if debug:
         dprint("Compose config:")
         pprint(compose_config)
+
     return compose_config
 
 
-def get_root_dir_path(compose_config: Dict[str, Any]) -> pathlib.Path:
+def get_dir_path(compose_config: Dict[str, Any], dir_name: str) -> pathlib.Path:
     """
-    Return the absolute path for the configured root directory.
+    Return the absolute path for the configured plugins directory.
+    Throw a warning if multiple values are configured.
+
+    Parameters
+    ----------
+    compose_config: pathlib.Path
+        The compose configuration dictionary.
+
+    dir_name: str
+        The name of the directory to be resolved.
+        Values include 'root' and 'plugins'.
+
+    Returns
+    -------
+    The absolute path to the configured directory.
     """
     old_cwd = os.getcwd()
-    os.chdir(compose_config['__file__'].parent)
-    path = pathlib.Path(compose_config.get('root_dir', './root')).resolve()
+    compose_file_path = compose_config['__file__']
+    os.chdir(compose_file_path.parent)
+
+    configured_dir = compose_config.get(f'{dir_name}_dir', None)
+    env_dir = compose_config.get('environment', {}).get(f'MRSM_{dir_name.upper()}_DIR', None)
+    local_dir_path = compose_file_path.parent / dir_name
+
+    explicit_dir = configured_dir or env_dir
+    path = pathlib.Path((explicit_dir or local_dir_path)).resolve()
+
+    num_options = sum([
+        (1 if configured_dir else 0),
+        (1 if env_dir else 0),
+    ])
+
+    if num_options > 1:
+        warn(
+            f"Multiple values are set for the {dir_name} directory.\n    "
+            + f"Compose will use '{path}' for '{dir_name + '_dir'}'.",
+            stack = False,
+        )
+    elif (
+        local_dir_path
+        and
+        explicit_dir
+        and
+        pathlib.Path(explicit_dir).resolve() != pathlib.Path(local_dir_path).resolve()
+    ):
+        warn(
+            f"Local directory '{dir_name}' exists but is not used.\n    "
+            + f"Compose will use '{path}' for '{dir_name + '_dir'}'.",
+            stack = False,
+        )
+
     os.chdir(old_cwd)
     return path
 
@@ -86,10 +142,14 @@ def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Return a dictionary of environment variables.
     """
-    return {
-        'MRSM_ROOT_DIR': str(get_root_dir_path(compose_config)),
+    env_dict = {
+        'MRSM_ROOT_DIR': str(compose_config['root_dir']),
+        'MRSM_PLUGINS_DIR': str(compose_config['plugins_dir']),
         'MRSM_CONFIG': json.dumps(compose_config.get('config', {})),
     }
+    if compose_config.get('environment', None):
+        env_dict.update(compose_config['environment'])
+    return env_dict
 
 
 def write_patch(compose_config: Dict[str, Any], debug: bool = False) -> None:
@@ -97,7 +157,7 @@ def write_patch(compose_config: Dict[str, Any], debug: bool = False) -> None:
     Write the patch files to the configured patch directory.
     """
     from meerschaum.config._edit import write_config
-    root_dir_path = get_root_dir_path(compose_config)
+    root_dir_path = compose_config['root_dir']
     patch_dir_path = root_dir_path / 'permanent_patch_config'
     patch_dir_path.mkdir(exist_ok=True)
     write_config(compose_config.get('config', {}), patch_dir_path, debug=debug)
@@ -108,8 +168,11 @@ def init_root(compose_config: Dict[str, Any], debug: bool = False) -> bool:
     Initialize the Meerschaum root directory.
     """
     from plugins.compose.utils import run_mrsm_command
-    root_dir_path = get_root_dir_path(compose_config)
+    from plugins.compose.utils.plugins import get_installed_plugins
+    root_dir_path = compose_config['root_dir']
+    fresh = False
     if not root_dir_path.exists():
+        fresh = True
         root_dir_path.mkdir(exist_ok=True)
         info(
             "Initializing Meerschaum root directory:\n    "
@@ -120,6 +183,22 @@ def init_root(compose_config: Dict[str, Any], debug: bool = False) -> bool:
     success = run_mrsm_command(
         ['show', 'version'], compose_config, debug=debug,
     ).wait() == 0
+
+    if fresh:
+        if get_installed_plugins(compose_config, debug=debug):
+            info("Installing required packages for plugins...")
+            run_mrsm_command(
+                ['install', 'required'],
+                compose_config,
+                capture_output = False,
+                debug = debug,
+            )
+
+    ### Update the cache after building the in-memory config.
+    if config_has_changed(compose_config):
+        write_config_cache(compose_config)
+
+    return success
 
 
 def init_env(
@@ -140,3 +219,62 @@ def init_env(
     os.chdir(compose_file_path.parent)
     load_dotenv(env_file)
     os.chdir(old_cwd)
+
+
+def get_config_cache_path(compose_config: Dict[str, Any]) -> pathlib.Path:
+    """
+    Return the file path to the config cache file.
+    """
+    root_dir_path = compose_config['root_dir']
+    return root_dir_path / '.compose-cache.pkl'
+
+
+def write_config_cache(compose_config: Dict[str, Any]) -> None:
+    """
+    Write the current compose configuration to a cache file.
+    """
+    config_cache_path = get_config_cache_path(compose_config) 
+    config_cache_parent = config_cache_path.parent
+
+    with open(config_cache_path, 'wb') as f:
+        pickle.dump(hash_config(compose_config), f)
+
+
+def read_config_cache(compose_config: Dict[str, Any]) -> Union[int, None]:
+    """
+    Read and return the cached config metadata.
+    If no cache exists, return None.
+    """
+    config_cache_path = get_config_cache_path(compose_config)
+    if not config_cache_path.exists():
+        return None
+    with open(config_cache_path, 'rb') as f:
+        config_cache = pickle.load(f)
+    return config_cache
+
+
+def config_has_changed(compose_config: Dict[str, Any]) -> bool:
+    """
+    Check if the in-memory configuration is the same as the last cached version.
+    """
+    if 'config_has_changed' in CONFIG_METADATA:
+        return CONFIG_METADATA['config_has_changed']
+    config_cache_path = get_config_cache_path(compose_config)
+    config_cache = read_config_cache(compose_config)
+    hashed_config = hash_config(compose_config)
+    has_changed = (config_cache != hashed_config)
+    CONFIG_METADATA['config_has_changed'] = has_changed
+    return has_changed
+
+
+def hash_config(compose_config: Dict[str, Any]) -> str:
+    """
+    Compute the hash value for the configuration dictionary.
+    """
+    import hashlib
+    return hashlib.sha256(
+        bytes(
+            json.dumps(compose_config, sort_keys=True, default=str),
+            encoding = 'utf-8',
+        )
+    ).hexdigest()

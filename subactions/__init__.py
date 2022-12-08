@@ -9,4 +9,5 @@ The entrypoint for subactions to the `compose` command.
 from .up import compose_up
 from .down import compose_down
 from .default import compose_default
-from .debug import compose_debug
+from .logs import compose_logs
+from .ps import compose_ps

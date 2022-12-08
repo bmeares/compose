@@ -8,7 +8,6 @@ Manage plugins in the isolated environment.
 
 from meerschaum.utils.typing import Dict, Any, List
 from meerschaum.utils.packages import run_python_package
-from plugins.utils import run_mrsm_command
 
 def get_installed_plugins(
         compose_config: Dict[str, Any],
@@ -17,6 +16,7 @@ def get_installed_plugins(
     """
     Return a list of plugins in the `root/plugins/` directory.
     """
+    from plugins.compose.utils import run_mrsm_command
     proc = run_mrsm_command(
         ['show', 'plugins', '--nopretty'], compose_config, debug=debug,
     )
@@ -31,6 +31,7 @@ def install_plugins(
     """
     Install plugins to the `root/plugins/` directory.
     """
+    from plugins.compose.utils import run_mrsm_command
     return run_mrsm_command(
-        'meerschaum', ['install', 'plugins'] + plugins, compose_config, debug=debug,
+        ['install', 'plugins'] + plugins, compose_config, debug=debug,
     ).wait() == 0

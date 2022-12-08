@@ -9,19 +9,26 @@ Entrypoint to the `compose up` command.
 import meerschaum as mrsm
 from meerschaum.utils.typing import SuccessTuple, Dict, Any, List
 from meerschaum.utils.warnings import info, warn
-from meerschaum.utils.misc import items_str, flatten_list
+from meerschaum.utils.misc import items_str, flatten_list, print_options
 
 def compose_up(
         debug: bool = False,
+        dry: bool = False,
+        force: bool = False,
         **kw
     ) -> SuccessTuple:
     """
     Bring up the configured Meerschaum stack.
     """
+    import shlex
     import copy
-    from meerschaum.config import get_config
     from plugins.compose.utils import run_mrsm_command, init
     from plugins.compose.utils.stack import get_project_name
+    from plugins.compose.utils.pipes import (
+        build_custom_connectors, get_defined_pipes,
+        instance_pipes_from_pipes_list,
+    )
+    from plugins.compose.utils.config import config_has_changed
     from collections import defaultdict
 
     compose_config = init(debug=debug, **kw)
@@ -30,85 +37,117 @@ def compose_up(
     if not success:
         return success, msg
 
-    project_name = get_project_name(compose_config)
-    default_instance = compose_config.get(
-        'config',
-        {}
-    ).get(
-        'meerschaum',
-        {}
-    ).get(
-        'instance',
-        get_config('meerschaum', 'instance')
-    )
-    sync_pipes_meta = compose_config.get('sync', {}).get('pipes', [])
-    schedule = compose_config.get('sync', {}).get('schedule', None)
-    
-    custom_connectors_config = compose_config.get(
-        'config',
-        {}
-    ).get(
-        'meerschaum',
-        {}
-    ).get(
-        'connectors',
-        {}
-    )
-    custom_connectors = {}
-    for typ, labels in custom_connectors_config.items():
-        for label, connector_kwargs in labels.items():
-            conn_keys = typ + ':' + label
-            custom_connectors[conn_keys] = mrsm.get_connector(conn_keys, **connector_kwargs)
+    ### Initialize the custom connectors and build the in-memory pipes.
+    custom_connectors = build_custom_connectors(compose_config)
+    pipes = get_defined_pipes(compose_config)
+    instance_pipes = instance_pipes_from_pipes_list(pipes)
 
-    instance_pipes = defaultdict(lambda: [])
-    for _pipe_meta in sync_pipes_meta:
-        pipe_meta = copy.deepcopy(_pipe_meta)
-        if 'tags' not in pipe_meta:
-            pipe_meta['tags'] = []
-        pipe_meta['tags'].append(project_name)
-        if 'instance' not in pipe_meta and 'mrsm_instance' not in pipe_meta:
-            pipe_meta['instance'] = default_instance
-        pipe = mrsm.Pipe(**pipe_meta)
-        clean_pipe = mrsm.Pipe(
-            pipe.connector_keys, pipe.metric_key, pipe.location_key,
-            instance=pipe.instance_connector,
-        )
-        instance_pipes[str(pipe.instance_connector)].append(pipe)
+    ### Some useful parameters from the config file.
+    project_name = get_project_name(compose_config)
+    schedule = compose_config.get('sync', {}).get('schedule', None)
+    min_seconds = compose_config.get('sync', {}).get('min_seconds', None)
+    timeout_seconds = compose_config.get('sync', {}).get('timeout_seconds', None)
+    args = compose_config.get('sync', {}).get('args', [])
+    if isinstance(args, str):
+        args = shlex.split(args)
+
+    ### Update the parameters in case the remote has changed.
+    for pipe in pipes:
+        clean_pipe = mrsm.Pipe(**pipe.meta)
         if not pipe.id:
             pipe.register(debug=debug)
         elif clean_pipe.parameters != pipe.parameters:
             pipe.edit(debug=debug)
 
-    pipes = list(flatten_list([pipe for pipe in instance_pipes.values()]))
-    success, msg = verify_initial_syncs(pipes, compose_config, debug=debug, **kw)
-    if not success:
-        return success, msg
+    ### Untag pipes that are tagged but no longer defined in mrsm-config.yaml.
+    tagged_instance_pipes = {
+        instance_keys: mrsm.get_pipes(
+            tags = [project_name],
+            instance = instance_keys,
+            as_list = True,
+            debug = debug,
+        )
+        for instance_keys in instance_pipes
+    }
+    for instance_connector, tagged_pipes in tagged_instance_pipes.items():
+        for tagged_pipe in tagged_pipes:
+            if tagged_pipe not in pipes:
+                tagged_pipe.parameters.get('tags', [project_name]).remove(project_name)
+                tagged_pipe.edit(debug=debug)
+
+    if dry:
+        return True, "Success"
+
+    ### If any changes have been made to the config file's values,
+    ### trigger another verification pass before starting jobs.
+    if config_has_changed(compose_config):
+        success, msg = verify_initial_syncs(pipes, compose_config, debug=debug, **kw)
+        if not success:
+            return success, msg
 
     job_names = [project_name + f' sync ({instance_keys})' for instance_keys in instance_pipes]
+
+    additional_args = copy.deepcopy(args)
+    if schedule:
+        if (
+            '--schedule' not in args
+            and
+            '-s' not in args
+            and
+            '--cron' not in args
+        ):
+            additional_args += ['--schedule', schedule]
+    elif '--loop' not in args:
+        additional_args.append('--loop')
+
+    if min_seconds is not None:
+        if '--min-seconds' not in args and '--cooldown' not in args:
+            additional_args += ['--min-seconds', str(min_seconds)]
+
+    if timeout_seconds is not None:
+        if '--timeout-seconds' not in args and '--timeout' not in args:
+            additional_args += ['--timeout-seconds', str(timeout_seconds)]
+
     commands_to_run = [
         (
             [
-                'start', 'job',
                 'sync', 'pipes', '-i', instance_keys, '-t', project_name,
-                '--name', job_name, '-f',
+                '--name', job_name, '-f', '-d',
             ]
-            + (['--schedule', schedule] if schedule else ['--loop'])
+            + additional_args
         )
         for instance_keys, job_name in zip(instance_pipes, job_names)
     ]
 
     for job_name, command in zip(job_names, commands_to_run):
-        run_mrsm_command(['delete', 'job', job_name, '-f'], compose_config, capture_output=(not debug), debug=debug)
+        info(f"Starting job '{job_name}'...")
+        run_mrsm_command(
+            ['delete', 'job', job_name, '-f'],
+            compose_config,
+            capture_output = (not debug),
+            debug = debug,
+        )
         run_mrsm_command(command, compose_config, capture_output=False, debug=debug)
 
-    run_mrsm_command(
-        ['show', 'logs'] + job_names,
-        compose_config,
-        capture_output = False,
-        debug = debug,
-    )
+    if force:
+        run_mrsm_command(
+            ['show', 'logs'] + job_names,
+            compose_config,
+            capture_output = False,
+            debug = debug,
+        )
 
-    return True, "Success"
+    if len(pipes) == 1:
+        msg = f"Syncing {pipes[0]} in a background job."
+    else:
+        msg = (
+            f"Syncing {len(pipes)} pipe" + ('s' if len(pipes) != 1 else '')
+            + (" across " if len(job_names) != 1 else " on ")
+            + f"{len(job_names)} instance" + ('s' if len(job_names) != 1 else '')
+            + "."
+            + ("\nRun `mrsm compose logs` or pass `-f` to follow logs output." if not force else '')
+        )
+    return True, msg
 
 
 def check_and_install_plugins(compose_config: Dict[str, Any], debug: bool = False) -> SuccessTuple:
@@ -173,9 +212,9 @@ def verify_initial_syncs(
     Try two passes of syncing before starting the jobs.
     """
     from plugins.compose.utils import run_mrsm_command
-    info("Verifying the initial syncs for " + items_str(pipes, quotes=False) + '.')
+    print_options(pipes, header=f"Verifying initial syncs for {len(pipes)} pipes:")
 
-    ### Pipes may be interdependent, so ignore first success status.
+    failed_pipes = []
     for pipe in pipes:
         success = run_mrsm_command(
             [
@@ -187,8 +226,14 @@ def verify_initial_syncs(
             capture_output = False,
             debug = debug,
         ).wait() == 0
+        if not success:
+            failed_pipes.append(pipe)
 
-    for pipe in pipes:
+    if not failed_pipes:
+        return True, "Success"
+
+    ### Pipes may be interdependent, so try again if we encounter any errors.
+    for pipe in failed_pipes:
         success = run_mrsm_command(
             [
                 'sync', 'pipes', 

@@ -8,9 +8,10 @@ Pass all other subactions to `mrsm stack`.
 
 from meerschaum.utils.typing import SuccessTuple, Dict, Any, Optional, List
 
-def compose_default(
+def compose_ps(
         action: Optional[List[str]] = None,
         sysargs: Optional[List[str]] = None,
+        nopretty: bool = False,
         debug: bool = False,
         **kw,
     ) -> SuccessTuple:
@@ -20,19 +21,8 @@ def compose_default(
     from plugins.compose.utils import run_mrsm_command, init
     compose_config = init(debug=debug, **kw)
 
-    isolated_sysargs = []
-    found_file = False
-    for arg in sysargs[1:]:
-        if arg in ('--file', '--env-file'):
-            found_file = True
-            continue
-        if found_file:
-            found_file = False
-            continue
-        isolated_sysargs.append(arg)
-
     success = run_mrsm_command(
-        isolated_sysargs,
+        ['show', 'jobs'] + (['--nopretty'] if nopretty else []),
         compose_config,
         capture_output = False,
         debug = debug,

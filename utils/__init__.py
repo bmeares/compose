@@ -8,8 +8,7 @@ Utility functions.
 
 import subprocess
 import pathlib
-from meerschaum.utils.typing import List, Dict, Any, Optional
-from meerschaum.utils.packages import run_python_package
+from typing import List, Dict, Any, Optional
 
 def run_mrsm_command(
         args: List[str],
@@ -23,7 +22,7 @@ def run_mrsm_command(
     """
     from plugins.compose.utils.debug import get_debug_args
     from plugins.compose.utils.config import get_env_dict, write_patch
-    #  write_patch(compose_config, debug=debug)
+    from meerschaum.utils.packages import run_python_package
     as_proc = kw.pop('as_proc', True)
     venv = kw.pop('venv', None)
     return run_python_package(
