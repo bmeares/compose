@@ -44,14 +44,14 @@ def compose_down(
         return True, "Success"
 
     custom_connectors = build_custom_connectors(compose_config)
-    pipes = get_defined_pipes(compose_config)
+    pipes = [pipe for pipe in get_defined_pipes(compose_config) if pipe.id is not None]
     if not pipes:
-        return False, "No pipes to drop."
+        return False, "No pipes to delete."
     instance_pipes = instance_pipes_from_pipes_list(pipes)
 
-    print_options(pipes, header="Pipes to be dropped:")
+    print_options(pipes, header="Pipes to be deleted:")
     question = (
-        f"Are you sure you want to drop {len(pipes)} pipe" + ('s' if len(pipes) != 1 else '')
+        f"Are you sure you want to delete {len(pipes)} pipe" + ('s' if len(pipes) != 1 else '')
         + (
             (
                 " on 1 instance"
@@ -64,12 +64,12 @@ def compose_down(
     )
 
     if not yes_no(question, yes=yes, force=force, default='n'):
-        return True, "Nothing was dropped."
+        return True, "Nothing was deleted."
 
     for instance_keys in instance_pipes:
-        info(f"Dropping pipes tagged as '{project_name}' on instance '{instance_keys}'.")
+        info(f"Deleting pipes tagged as '{project_name}' on instance '{instance_keys}'.")
         run_mrsm_command(
-            ['drop', 'pipes', '-t', project_name, '-i', instance_keys, '-f'],
+            ['delete', 'pipes', '-t', project_name, '-i', instance_keys, '-f'],
             compose_config,
             capture_output = False,
             debug = debug,

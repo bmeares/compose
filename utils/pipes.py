@@ -69,6 +69,8 @@ def build_custom_connectors(compose_config: Dict[str, Any]) -> Dict[str, Any]:
         'connectors',
         {}
     )
+    if not custom_connectors_config:
+        return {}
     custom_connectors = {}
     for typ, labels in custom_connectors_config.items():
         for label, connector_kwargs in labels.items():

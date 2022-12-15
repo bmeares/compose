@@ -52,12 +52,21 @@ def compose_up(
         args = shlex.split(args)
 
     ### Update the parameters in case the remote has changed.
+    updated_pipes = []
     for pipe in pipes:
+        updated_registration = False
         clean_pipe = mrsm.Pipe(**pipe.meta)
         if not pipe.id:
             pipe.register(debug=debug)
+            updated_registration = True
         elif clean_pipe.parameters != pipe.parameters:
+            ### Sometimes pipes can dynamically change parameters,
+            ### so don't retrigger a verification in this case.
             pipe.edit(debug=debug)
+            updated_registration = True
+
+        if updated_registration:
+            updated_pipes.append(pipe)
 
     ### Untag pipes that are tagged but no longer defined in mrsm-config.yaml.
     tagged_instance_pipes = {
@@ -80,8 +89,8 @@ def compose_up(
 
     ### If any changes have been made to the config file's values,
     ### trigger another verification pass before starting jobs.
-    if config_has_changed(compose_config):
-        success, msg = verify_initial_syncs(pipes, compose_config, debug=debug, **kw)
+    if updated_registration and config_has_changed(compose_config):
+        success, msg = verify_initial_syncs(updated_pipes, compose_config, debug=debug, **kw)
         if not success:
             return success, msg
 

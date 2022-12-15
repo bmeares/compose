@@ -18,20 +18,30 @@ The `compose` plugin does the same for Meerschaum as Docker Compose did for Dock
     sync:
       schedule: "every 30 seconds"
       pipes:
-        - connector: "plugin:stress"
-          metric: "test"
+        - connector: "plugin:noaa"
+          metric: "weather"
+          location: "atlanta"
+          parameters:
+            noaa:
+              stations:
+                - "KATL"
 
         - connector: "sql:awesome"
-          metric: "stress_test"
-          target: "stress_test"
+          metric: "fahrenheit"
+          target: "atl_temp"
           parameters:
-            query: "SELECT * FROM plugin_stress_test"
+            query: >
+              SELECT
+                timestamp,
+                station,
+                (("temperature (wmoUnit:degC)" * 1.8) + 32) AS fahrenheit
+              FROM plugin_noaa_weather_atlanta
           columns:
-            datetime: "datetime"
-            id: "id"
+            datetime: "timestamp"
+            id: "station"
 
     plugins:
-      - "stress"
+      - "noaa"
 
     config:
       meerschaum:
@@ -84,9 +94,9 @@ mrsm compose start api -i sql:awesome
 mrsm compose
 ```
 
-## Multiples Instances
+## Multiple Instances
 
-The biggest advtange of using Meerschaum Compose is the ability to sync to multiple instances in a project. In the example above, we defined a default instance `sql:awesome`, but say we also wanted to sync to sync to a new database `sql:secret` that we want to set in our environment:
+The biggest advtange of using Meerschaum Compose is the ability to sync to multiple instances in a project. In the example above, we defined a default instance `sql:awesome`, but say we wanted to sync our Fahrenheit pipe to a new database `sql:secret` that we want to set in our environment:
 
 1. Create a new file `.env` (or a different name and use `--env-file`):
     ```bash
@@ -105,35 +115,15 @@ The biggest advtange of using Meerschaum Compose is the ability to sync to multi
               database: "awesome.db"
               flavor: "sqlite"
     ```
-3. Create a new pipe with `sql:secret` as its instance:
+3. Set the `instance` of the Fahrenheit pipe to `sql:secret`:
     ```yaml
-    sync:
-      schedule: "every 30 seconds"
-      pipes:
-        - connector: "plugin:stress"
-          metric: "test"
-
-        - connector: "sql:awesome"
-          metric: "stress_test"
-          target: "stress_test"
-          parameters:
-            query: "SELECT * FROM plugin_stress_test"
-          columns:
-            datetime: "datetime"
-            id: "id"
-
-        - connector: "sql:awesome"
-          metric: "stress_test"
-          instance: "sql:secret"
-          target: "stress_test"
-          parameters:
-            query: "SELECT * FROM plugin_stress_test"
-          columns:
-            datetime: "datetime"
-            id: "id"
+    - connector: "sql:awesome"
+      metric: "fahrenheit"
+      instance: "sql:secret"
+      target: "atl_temp"
     ```
 
-With this pipes configuration, we've created a duplicate pipe stored on the new database `sql:secret`. Run `compose up` again to create the new pipe.
+Now we've set the Fahrenheit pipe to be stored on the database `sql:secret`. Run `compose up` again to create the table `atl_temp` on `sql:secret`.
 
 ```bash
 mrsm compose up
