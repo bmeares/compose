@@ -53,6 +53,7 @@ def compose_up(
 
     ### Update the parameters in case the remote has changed.
     updated_pipes = []
+    updated_registration = False
     for pipe in pipes:
         updated_registration = False
         clean_pipe = mrsm.Pipe(**pipe.meta)
