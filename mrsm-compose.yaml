@@ -1,6 +1,6 @@
+root_dir: ./root
 sync:
   schedule: "every 20 seconds"
-  # min_seconds: 10
   timeout_seconds: 20
   pipes:
     - connector: "plugin:stress"
@@ -34,17 +34,6 @@ sync:
       columns:
         datetime: "datetime"
         id: "id"
-
-    # - connector: "sql:demo"
-      # metric: "test"
-      # location: "3"
-      # instance: "sql:secret"
-      # parameters:
-        # query: "SELECT * FROM stress_test WHERE id = 3"
-      # columns:
-        # datetime: "datetime"
-        # id: "id"
-
 
 plugins:
   - "stress"

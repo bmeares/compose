@@ -15,6 +15,7 @@ from meerschaum.utils.warnings import warn, info
 from meerschaum.utils.debug import dprint
 from meerschaum.utils.formatting import pprint
 from meerschaum.utils.packages import run_python_package
+from meerschaum.config._paths import PLUGINS_RESOURCES_PATH
 
 COMPOSE_KEYS = ['root_dir', 'plugins_dir', 'plugins', 'sync', 'config', 'environment']
 DEFAULT_COMPOSE_FILE_CANDIDATES = ['mrsm-compose.yaml', 'mrsm-compose.yml']
@@ -67,11 +68,12 @@ def read_compose_config(
     env = EnvYAML(compose_file_path, strict=True)
     compose_config = search_and_substitute_config({k: env[k] for k in COMPOSE_KEYS if k in env})
     compose_config['__file__'] = compose_file_path
-    compose_config['root_dir'] = get_dir_path(compose_config, 'root')
-    plugins_dir_path = get_dir_path(compose_config, 'plugins')
-    if not plugins_dir_path.exists():
-        plugins_dir_path.mkdir(parents=True, exist_ok=True)
-    compose_config['plugins_dir'] = plugins_dir_path
+    compose_config['root_dir'] = get_dir_paths(compose_config, 'root')[0]
+    plugins_dir_paths = get_dir_paths(compose_config, 'plugins')
+    for plugins_dir_path in plugins_dir_paths:
+        if not plugins_dir_path.exists():
+            plugins_dir_path.mkdir(parents=True, exist_ok=True)
+    compose_config['plugins_dir'] = plugins_dir_paths
 
     ensure_project_name(compose_config)
     if debug:
@@ -81,9 +83,9 @@ def read_compose_config(
     return compose_config
 
 
-def get_dir_path(compose_config: Dict[str, Any], dir_name: str) -> pathlib.Path:
+def get_dir_paths(compose_config: Dict[str, Any], dir_name: str) -> List[pathlib.Path]:
     """
-    Return the absolute path for the configured plugins directory.
+    Return the absolute paths for the configured plugins directory.
     Throw a warning if multiple values are configured.
 
     Parameters
@@ -103,39 +105,58 @@ def get_dir_path(compose_config: Dict[str, Any], dir_name: str) -> pathlib.Path:
     compose_file_path = compose_config['__file__']
     os.chdir(compose_file_path.parent)
 
-    configured_dir = compose_config.get(f'{dir_name}_dir', None)
+    configured_dir = compose_config.get(f'{dir_name}_dir', -1)
     env_dir = compose_config.get('environment', {}).get(f'MRSM_{dir_name.upper()}_DIR', None)
     local_dir_path = compose_file_path.parent / dir_name
 
-    explicit_dir = configured_dir or env_dir
-    path = pathlib.Path((explicit_dir or local_dir_path)).resolve()
+    if isinstance(env_dir, str):
+        if env_dir.lstrip().startswith('['):
+            env_dir_paths = [
+                pathlib.Path(env_path_str).resolve()
+                for env_path_str in json.loads(env_dir)
+            ]
+        else:
+            env_dir_paths = [pathlib.Path(env_dir).resolve()]
+    else:
+        env_dir_paths = []
 
-    num_options = sum([
-        (1 if configured_dir else 0),
-        (1 if env_dir else 0),
-    ])
+    if configured_dir == -1:
+        configured_dir_vals = []
+    elif isinstance(configured_dir, list):
+        configured_dir_vals = configured_dir
+    else:
+        configured_dir_vals = [configured_dir]
 
-    if num_options > 1:
-        warn(
-            f"Multiple values are set for the {dir_name} directory.\n    "
-            + f"Compose will use '{path}' for '{dir_name + '_dir'}'.",
-            stack = False,
-        )
-    elif (
-        local_dir_path
-        and
-        explicit_dir
-        and
-        pathlib.Path(explicit_dir).resolve() != pathlib.Path(local_dir_path).resolve()
-    ):
-        warn(
-            f"Local directory '{dir_name}' exists but is not used.\n    "
-            + f"Compose will use '{path}' for '{dir_name + '_dir'}'.",
-            stack = False,
-        )
+    configured_dir_paths = []
+    for configured_dir_val in configured_dir_vals:
+        if configured_dir_val in ('', None) and dir_name == 'plugins':
+            info(
+                "A null value for `plugins_dir` will include your regular Meerschaum plugins.\n"
+                + "    This will be less isolated than project-specific plugins directories."
+            )
+            path = PLUGINS_RESOURCES_PATH
+        else:
+            path = pathlib.Path(configured_dir_val).resolve()
+        if path not in configured_dir_paths:
+            configured_dir_paths.append(path)
+
+    paths = (
+        configured_dir_paths
+        + [local_dir_path.resolve()]
+        + env_dir_paths
+    )
 
     os.chdir(old_cwd)
-    return path
+    if len(set(paths)) > 1 and dir_name != 'plugins':
+        path = paths[0]
+        warn(
+            f"Detected multiple values for {dir_name}_dir.\n   "
+            + f"Compose will use '{path}' for {dir_name}_dir.",
+            stack = False,
+        )
+        return [path]
+
+    return paths
 
 
 def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -143,8 +164,12 @@ def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:
     Return a dictionary of environment variables.
     """
     env_dict = {
-        'MRSM_ROOT_DIR': str(compose_config['root_dir']),
-        'MRSM_PLUGINS_DIR': str(compose_config['plugins_dir']),
+        'MRSM_ROOT_DIR': str(compose_config['root_dir'].as_posix()),
+        'MRSM_PLUGINS_DIR': (
+            str(compose_config['plugins_dir'].as_posix())
+            if not isinstance(compose_config['plugins_dir'], list)
+            else json.dumps([path.as_posix() for path in compose_config['plugins_dir']])
+        ),
         'MRSM_CONFIG': json.dumps(compose_config.get('config', {})),
     }
     if compose_config.get('environment', None):
