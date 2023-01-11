@@ -22,6 +22,7 @@ def compose_up(
     """
     import shlex
     import copy
+    import json
     from plugins.compose.utils import run_mrsm_command, init
     from plugins.compose.utils.stack import get_project_name
     from plugins.compose.utils.pipes import (
@@ -58,12 +59,29 @@ def compose_up(
         updated_registration = False
         clean_pipe = mrsm.Pipe(**pipe.meta)
         if not pipe.id:
-            pipe.register(debug=debug)
+            success = run_mrsm_command(
+                [
+                    'register', 'pipes', 
+                    '-c', pipe.connector_keys, '-m', pipe.metric_key, '-l', pipe.location_key,
+                    '-i', pipe.instance_keys,
+                    '--params', json.dumps(pipe.parameters),
+                    '--noask',
+                ],
+                compose_config,
+                capture_output = True,
+                debug = debug,
+            ).wait() == 0
+            if not success:
+                warn(f"Failed to register {pipe}.", stack=False)
             updated_registration = True
-        elif clean_pipe.parameters != pipe.parameters:
-            ### Sometimes pipes can dynamically change parameters,
-            ### so don't retrigger a verification in this case.
-            pipe.edit(debug=debug)
+
+        ### Check the remote parameters against the specified parameters in the YAML.
+        elif clean_pipe.parameters != pipe._attributes['parameters']:
+            ### Editing with `--params` in a subprocess only patches,
+            ### so instead replace the parameters dictionary directly.
+            success, msg = pipe.edit(debug=debug)
+            if not success:
+                warn(f"Failed to edit {pipe}.", stack=False)
             updated_registration = True
 
         if updated_registration:
@@ -86,7 +104,14 @@ def compose_up(
                 tagged_pipe.edit(debug=debug)
 
     if dry:
-        return True, "Success"
+        return True, (
+            f"Updated parameters for {len(pipes)} pipe"
+            + ("s" if len(pipes) != 1 else "")
+            + (" across " if len(instance_pipes) != 1 else " on ")
+            + f"{len(instance_pipes)} instance"
+            + ("s" if len(instance_pipes) != 1 else "")
+            + "."
+        )
 
     ### If any changes have been made to the config file's values,
     ### trigger another verification pass before starting jobs.

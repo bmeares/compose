@@ -146,9 +146,16 @@ def get_dir_paths(compose_config: Dict[str, Any], dir_name: str) -> List[pathlib
         + env_dir_paths
     )
 
+    unique_paths = []
+    for path in paths:
+        real_path = pathlib.Path(os.path.realpath(path)).resolve()
+        if real_path not in unique_paths:
+            unique_paths.append(real_path)
+
+
     os.chdir(old_cwd)
     if len(set(paths)) > 1 and dir_name != 'plugins':
-        path = paths[0]
+        path = unique_paths[0]
         warn(
             f"Detected multiple values for {dir_name}_dir.\n   "
             + f"Compose will use '{path}' for {dir_name}_dir.",
@@ -156,7 +163,7 @@ def get_dir_paths(compose_config: Dict[str, Any], dir_name: str) -> List[pathlib
         )
         return [path]
 
-    return paths
+    return unique_paths
 
 
 def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:

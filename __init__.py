@@ -6,8 +6,8 @@
 Manage Meerschaum environments with Compose.
 """
 
-__version__ = '1.1.0'
-required = ['python-dotenv', 'envyaml']
+__version__ = '1.1.1'
+required = ['python-dotenv', 'envyaml', 'meerschaum>=1.5.2']
 
 import json
 import pathlib
