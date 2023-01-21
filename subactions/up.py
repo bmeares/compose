@@ -88,10 +88,11 @@ def compose_up(
             updated_pipes.append(pipe)
 
     ### Untag pipes that are tagged but no longer defined in mrsm-config.yaml.
+    from meerschaum.connectors import connectors
     tagged_instance_pipes = {
         instance_keys: mrsm.get_pipes(
             tags = [project_name],
-            instance = instance_keys,
+            instance = custom_connectors.get(instance_keys, instance_keys),
             as_list = True,
             debug = debug,
         )

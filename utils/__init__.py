@@ -25,12 +25,14 @@ def run_mrsm_command(
     from meerschaum.utils.packages import run_python_package
     as_proc = kw.pop('as_proc', True)
     venv = kw.pop('venv', None)
+    foreground = kw.pop('foreground', True)
     return run_python_package(
         'meerschaum', args + get_debug_args(debug),
         env = get_env_dict(compose_config),
         capture_output = capture_output,
         as_proc = as_proc,
         venv = venv,
+        foreground = foreground,
         debug = debug,
         **kw
     )
