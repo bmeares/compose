@@ -22,12 +22,23 @@ def run_mrsm_command(
     """
     from plugins.compose.utils.debug import get_debug_args
     from plugins.compose.utils.config import get_env_dict, write_patch
+    from plugins.compose.utils.stack import get_project_name
     from meerschaum.utils.packages import run_python_package
+    project_name = get_project_name(compose_config)
     as_proc = kw.pop('as_proc', True)
     venv = kw.pop('venv', None)
     foreground = kw.pop('foreground', True)
     return run_python_package(
-        'meerschaum', args + get_debug_args(debug),
+        'meerschaum',
+        (
+            args
+            + (get_debug_args(debug) if '--debug' not in args else [])
+            + (
+                ['--tags', project_name]
+                if '--tags' not in args and '-t' not in args
+                else []
+            )
+        ),
         env = get_env_dict(compose_config),
         capture_output = capture_output,
         as_proc = as_proc,
