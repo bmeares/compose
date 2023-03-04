@@ -7,6 +7,7 @@ Pass all other subactions to `mrsm stack`.
 """
 
 from meerschaum.utils.typing import SuccessTuple, Dict, Any, Optional, List
+from meerschaum.utils.warnings import info
 
 def compose_default(
         action: Optional[List[str]] = None,
@@ -18,7 +19,9 @@ def compose_default(
     Execute Meerschaum actions in the isolated environment.
     """
     from plugins.compose.utils import run_mrsm_command, init
+    from plugins.compose.utils.stack import get_project_name
     compose_config = init(debug=debug, **kw)
+    project_name = get_project_name(compose_config)
 
     isolated_sysargs = []
     found_file = False
@@ -31,6 +34,7 @@ def compose_default(
             continue
         isolated_sysargs.append(arg)
 
+    info(f"Running '{' '.join(action)}' in compose project '{project_name}'...")
     success = run_mrsm_command(
         isolated_sysargs,
         compose_config,

@@ -101,6 +101,7 @@ def compose_up(
     for instance_connector, tagged_pipes in tagged_instance_pipes.items():
         for tagged_pipe in tagged_pipes:
             if tagged_pipe not in pipes:
+                info(f"Removing tag '{project_name}' from {tagged_pipe}...")
                 tagged_pipe.parameters.get('tags', [project_name]).remove(project_name)
                 tagged_pipe.edit(debug=debug)
 

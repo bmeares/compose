@@ -17,7 +17,15 @@ from meerschaum.utils.formatting import pprint
 from meerschaum.utils.packages import run_python_package
 from meerschaum.config._paths import PLUGINS_RESOURCES_PATH
 
-COMPOSE_KEYS = ['root_dir', 'plugins_dir', 'plugins', 'sync', 'config', 'environment']
+COMPOSE_KEYS = [
+    'root_dir',
+    'plugins_dir',
+    'plugins',
+    'sync',
+    'config',
+    'environment',
+    'project_name',
+]
 DEFAULT_COMPOSE_FILE_CANDIDATES = ['mrsm-compose.yaml', 'mrsm-compose.yml']
 CONFIG_METADATA: Dict[str, Any] = {}
 

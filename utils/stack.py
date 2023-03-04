@@ -16,15 +16,22 @@ def get_project_name(compose_config: Dict[str, Any]) -> str:
     """
     Determine the `docker-compose` project name.
     """
-    project_name = compose_config.get('stack', {}).get(
-        'project_name', compose_config['__file__'].parent.stem
-    )
-    if project_name == 'mrsm':
-        raise Exception(
-            "Your stack project name cannot be 'mrsm'.\n    "
-            + "You can specify a name in your compose config YAML file under these keys:\n    "
-            + "config:stack:project_name\n    "
+    root_project_name = compose_config.get('project_name', None)
+    stack_project_name = compose_config.get('stack', {}).get('project_name', None)
+    default_project_name = compose_config['__file__'].parent.stem
+
+    if root_project_name:
+        project_name = root_project_name
+    elif stack_project_name:
+        project_name = stack_project_name
+        warn(
+            f"Detected a project_name '{stack_project_name}' under 'config:stack:project_name'.\n"
+            + "    Will use this as the project name for this compose file.",
+            stack = False,
         )
+    else:
+        project_name = default_project_name
+
     return project_name
 
 
@@ -32,9 +39,10 @@ def ensure_project_name(compose_config: Dict[str, Any]) -> None:
     """
     Ensure the project name is set in the compose configuration dictionary.
     """
+    project_name = get_project_name(compose_config)
+    compose_config['project_name'] = project_name
     if 'config' not in compose_config:
         compose_config['config'] = {}
     if 'stack' not in compose_config['config']:
         compose_config['config']['stack'] = {}
-    if 'project_name' not in compose_config['config']['stack']:
-        compose_config['config']['stack']['project_name'] = get_project_name(compose_config)
+    compose_config['config']['stack']['project_name'] = project_name
