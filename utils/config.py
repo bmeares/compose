@@ -179,17 +179,7 @@ def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Return a dictionary of environment variables.
     """
-    env_dict = {
-        'MRSM_ROOT_DIR': str(compose_config['root_dir'].as_posix()),
-        'MRSM_PLUGINS_DIR': (
-            str(compose_config['plugins_dir'].as_posix())
-            if not isinstance(compose_config['plugins_dir'], list)
-            else json.dumps([path.as_posix() for path in compose_config['plugins_dir']])
-        ),
-        'MRSM_CONFIG': json.dumps(compose_config.get('config', {})),
-    }
-    if compose_config.get('environment', None):
-        env_dict.update(compose_config['environment'])
+    env_dict = {}
     if platform.system() == 'Windows':
         app_data = os.environ.get('AppData', '')
         home = os.environ.get('HOME', pathlib.Path.home().as_posix())
@@ -199,6 +189,19 @@ def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:
             'HOME': home,
             'HOMEPATH': homepath,
         })
+        env_dict.update(os.environ)
+
+    env_dict.update({
+        'MRSM_ROOT_DIR': str(compose_config['root_dir'].as_posix()),
+        'MRSM_PLUGINS_DIR': (
+            str(compose_config['plugins_dir'].as_posix())
+            if not isinstance(compose_config['plugins_dir'], list)
+            else json.dumps([path.as_posix() for path in compose_config['plugins_dir']])
+        ),
+        'MRSM_CONFIG': json.dumps(compose_config.get('config', {})),
+    })
+    if compose_config.get('environment', None):
+        env_dict.update(compose_config['environment'])
     return env_dict
 
 
