@@ -10,6 +10,7 @@ import os
 import pathlib
 import json
 import pickle
+import platform
 from meerschaum.utils.typing import Optional, Union, Dict, Any, List
 from meerschaum.utils.warnings import warn, info
 from meerschaum.utils.debug import dprint
@@ -189,6 +190,15 @@ def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:
     }
     if compose_config.get('environment', None):
         env_dict.update(compose_config['environment'])
+    if platform.system() == 'Windows':
+        app_data = os.environ.get('AppData', '')
+        home = os.environ.get('HOME', pathlib.Path.home().as_posix())
+        homepath = os.environ.get('HOMEPATH', home)
+        env_dict.update({
+            'AppData': app_data,
+            'HOME': home,
+            'HOMEPATH': homepath,
+        })
     return env_dict
 
 
