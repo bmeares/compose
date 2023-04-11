@@ -85,10 +85,6 @@ def read_compose_config(
     compose_config['plugins_dir'] = plugins_dir_paths
 
     ensure_project_name(compose_config)
-    if debug:
-        dprint("Compose config:")
-        pprint(compose_config)
-
     return compose_config
 
 

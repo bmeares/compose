@@ -35,6 +35,10 @@ sync:
         datetime: "datetime"
         id: "id"
 
+    - connector: "plugin:stress"
+      metric: "test2"
+      temporary: true
+
 plugins:
   - "stress"
 

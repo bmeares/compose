@@ -6,6 +6,7 @@
 Utility functions.
 """
 
+import sys
 import subprocess
 import pathlib
 from typing import List, Dict, Any, Optional
@@ -28,6 +29,14 @@ def run_mrsm_command(
     as_proc = kw.pop('as_proc', True)
     venv = kw.pop('venv', None)
     foreground = kw.pop('foreground', True)
+
+    ### Backport for older version of Meerschaum.
+    try:
+        import termios
+        _ = termios.tcgetattr(sys.stdin.fileno())
+    except Exception as e:
+        foreground = False
+
     return run_python_package(
         'meerschaum',
         (
@@ -35,7 +44,12 @@ def run_mrsm_command(
             + (get_debug_args(debug) if '--debug' not in args else [])
             + (
                 ['--tags', project_name]
-                if '--tags' not in args and '-t' not in args
+                if (
+                    '--tags' not in args
+                    and
+                    '-t' not in args
+                    and not ' '.join(args).startswith('stack ')
+                )
                 else []
             )
         ),

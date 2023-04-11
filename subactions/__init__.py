@@ -11,3 +11,5 @@ from .down import compose_down
 from .default import compose_default
 from .logs import compose_logs
 from .ps import compose_ps
+from .explain import compose_explain
+from .run import compose_run

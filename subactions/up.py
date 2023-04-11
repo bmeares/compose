@@ -15,6 +15,8 @@ def compose_up(
         debug: bool = False,
         dry: bool = False,
         force: bool = False,
+        verify: bool = False,
+        no_jobs: bool = False,
         **kw
     ) -> SuccessTuple:
     """
@@ -58,12 +60,17 @@ def compose_up(
     for pipe in pipes:
         updated_registration = False
         clean_pipe = mrsm.Pipe(**pipe.meta)
-        if not pipe.id:
+        if pipe.temporary:
+            info(f"{pipe} is temporary, will not modify registration.")
+        elif not pipe.id:
+            info(f"Registering {pipe}...")
             success = run_mrsm_command(
                 [
                     'register', 'pipes', 
-                    '-c', pipe.connector_keys, '-m', pipe.metric_key, '-l', pipe.location_key,
-                    '-i', pipe.instance_keys,
+                    '-c', str(pipe.connector_keys),
+                    '-m', str(pipe.metric_key),
+                    '-l', str(pipe.location_key),
+                    '-i', str(pipe.instance_keys),
                     '--params', json.dumps(pipe.parameters),
                     '--noask',
                 ],
@@ -79,12 +86,13 @@ def compose_up(
         elif clean_pipe.parameters != pipe._attributes['parameters']:
             ### Editing with `--params` in a subprocess only patches,
             ### so instead replace the parameters dictionary directly.
+            info(f"Updating parameters for {pipe}...")
             success, msg = pipe.edit(debug=debug)
             if not success:
                 warn(f"Failed to edit {pipe}.", stack=False)
             updated_registration = True
 
-        if updated_registration:
+        if updated_registration or verify or pipe.temporary:
             updated_pipes.append(pipe)
 
     ### Untag pipes that are tagged but no longer defined in mrsm-config.yaml.
@@ -117,10 +125,36 @@ def compose_up(
 
     ### If any changes have been made to the config file's values,
     ### trigger another verification pass before starting jobs.
-    if updated_registration and config_has_changed(compose_config):
+    ran_verification_sync = False
+    if verify or (updated_pipes and config_has_changed(compose_config)):
+        ran_verification_sync = True
+        print_options(pipes, header=f"Verifying initial syncs for {len(updated_pipes)} pipes:")
         success, msg = verify_initial_syncs(updated_pipes, compose_config, debug=debug, **kw)
         if not success:
             return success, msg
+
+    if no_jobs:
+        msg = (
+            (
+                f"Synced {len(updated_pipes)} pipe"
+                + ("s" if len(updated_pipes) != 1 else "")
+                + f" across {len(instance_pipes)} instance"
+                + ("s" if len(instance_pipes) != 1 else "")
+                + "."
+            )
+            if ran_verification_sync
+            else (
+                (
+                    f"Updated {len(updated_pipes)} pipe"
+                    + ("s" if len(updated_pipes) != 1 else "")
+                    + f" across {len(instance_pipes)} instance"
+                    + "."
+                )
+                if updated_pipes
+                else f"Nothing to do."
+            )
+        )
+        return True, msg
 
     job_names = [project_name + f' sync ({instance_keys})' for instance_keys in instance_pipes]
 
@@ -249,21 +283,30 @@ def verify_initial_syncs(
     Try two passes of syncing before starting the jobs.
     """
     from plugins.compose.utils import run_mrsm_command
-    print_options(pipes, header=f"Verifying initial syncs for {len(pipes)} pipes:")
 
     failed_pipes = []
     for pipe in pipes:
-        success = run_mrsm_command(
-            [
-                'sync', 'pipes', 
-                '-c', pipe.connector_keys, '-m', pipe.metric_key, '-l', pipe.location_key,
-                '-i', pipe.instance_keys,
-            ],
-            compose_config,
-            capture_output = False,
-            debug = debug,
-        ).wait() == 0
+        info(f"Syncing {pipe}...")
+        success = (
+            run_mrsm_command(
+                [
+                    'sync',
+                    'pipes', 
+                    '-c', str(pipe.connector_keys),
+                    '-m', str(pipe.metric_key),
+                    '-l', str(pipe.location_key),
+                    '-i', str(pipe.instance_keys),
+                ],
+                compose_config,
+                capture_output = False,
+                debug = debug,
+            ).wait() == 0
+            if not pipe.temporary
+            else pipe.sync(debug=debug)[0]
+        )
+
         if not success:
+            warn(f"Failed to sync {pipe}.", stack=False)
             failed_pipes.append(pipe)
 
     if not failed_pipes:
@@ -271,16 +314,24 @@ def verify_initial_syncs(
 
     ### Pipes may be interdependent, so try again if we encounter any errors.
     for pipe in failed_pipes:
-        success = run_mrsm_command(
-            [
-                'sync', 'pipes', 
-                '-c', pipe.connector_keys, '-m', pipe.metric_key, '-l', pipe.location_key,
-                '-i', pipe.instance_keys,
-            ],
-            compose_config,
-            capture_output = False,
-            debug = debug,
-        ).wait() == 0
+        info(f"Retry syncing {pipe}...")
+        success = (
+            run_mrsm_command(
+                [
+                    'sync',
+                    'pipes', 
+                    '-c', str(pipe.connector_keys),
+                    '-m', str(pipe.metric_key),
+                    '-l', str(pipe.location_key),
+                    '-i', str(pipe.instance_keys),
+                ],
+                compose_config,
+                capture_output = False,
+                debug = debug,
+            ).wait() == 0
+            if not pipe.temporary
+            else pipe.sync(debug=debug)[0]
+        )
 
         if not success:
             warn(f"Failed to sync {pipe}!", stack=False)

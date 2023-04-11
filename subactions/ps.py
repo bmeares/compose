@@ -3,7 +3,7 @@
 # vim:fenc=utf-8
 
 """
-Pass all other subactions to `mrsm stack`.
+Show the jobs' states.
 """
 
 from meerschaum.utils.typing import SuccessTuple, Dict, Any, Optional, List
