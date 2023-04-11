@@ -282,7 +282,23 @@ def verify_initial_syncs(
     """
     Try two passes of syncing before starting the jobs.
     """
+    import json
     from plugins.compose.utils import run_mrsm_command
+    from meerschaum._internal.arguments._parse_arguments import parse_dict_to_sysargs
+
+    flags_to_remove = {'-c', '-m', '-l', '-i'}
+    kwarg_sysargs = parse_dict_to_sysargs(kw)
+    indices_to_remove = {i for i, flag in enumerate(kwarg_sysargs) if flag in flags_to_remove}
+    flags = []
+    for i, flag in enumerate(kwarg_sysargs):
+        if i in indices_to_remove or (i - 1) in indices_to_remove:
+            continue
+        flag_str = (
+            json.dumps(flag)
+            if isinstance(flag, dict)
+            else str(flag)
+        )
+        flags.append(flag_str)
 
     failed_pipes = []
     for pipe in pipes:
@@ -296,13 +312,13 @@ def verify_initial_syncs(
                     '-m', str(pipe.metric_key),
                     '-l', str(pipe.location_key),
                     '-i', str(pipe.instance_keys),
-                ],
+                ] + flags,
                 compose_config,
                 capture_output = False,
                 debug = debug,
             ).wait() == 0
             if not pipe.temporary
-            else pipe.sync(debug=debug)[0]
+            else pipe.sync(debug=debug, **kw)[0]
         )
 
         if not success:
@@ -324,13 +340,13 @@ def verify_initial_syncs(
                     '-m', str(pipe.metric_key),
                     '-l', str(pipe.location_key),
                     '-i', str(pipe.instance_keys),
-                ],
+                ] + flags,
                 compose_config,
                 capture_output = False,
                 debug = debug,
             ).wait() == 0
             if not pipe.temporary
-            else pipe.sync(debug=debug)[0]
+            else pipe.sync(debug=debug, **kw)[0]
         )
 
         if not success:
