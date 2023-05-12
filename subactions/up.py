@@ -7,7 +7,7 @@ Entrypoint to the `compose up` command.
 """
 
 import meerschaum as mrsm
-from meerschaum.utils.typing import SuccessTuple, Dict, Any, List
+from meerschaum.utils.typing import SuccessTuple, Dict, Any, List, Optional
 from meerschaum.utils.warnings import info, warn
 from meerschaum.utils.misc import items_str, flatten_list, print_options
 
