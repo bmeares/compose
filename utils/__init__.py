@@ -30,13 +30,6 @@ def run_mrsm_command(
     venv = kw.pop('venv', None)
     foreground = kw.pop('foreground', True)
 
-    ### Backport for older version of Meerschaum.
-    try:
-        import termios
-        _ = termios.tcgetattr(sys.stdin.fileno())
-    except Exception as e:
-        foreground = False
-
     return run_python_package(
         'meerschaum',
         (

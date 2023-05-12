@@ -129,7 +129,12 @@ def compose_up(
     if verify or (updated_pipes and config_has_changed(compose_config)):
         ran_verification_sync = True
         print_options(pipes, header=f"Verifying initial syncs for {len(updated_pipes)} pipes:")
-        success, msg = verify_initial_syncs(updated_pipes, compose_config, debug=debug, **kw)
+        success, msg = verify_initial_syncs(
+            updated_pipes,
+            compose_config,
+            sysargs,
+            debug = debug,
+        )
         if not success:
             return success, msg
 
@@ -276,8 +281,8 @@ def check_and_install_plugins(compose_config: Dict[str, Any], debug: bool = Fals
 def verify_initial_syncs(
         pipes: List[mrsm.Pipe],
         compose_config: Dict[str, Any],
+        sysargs: Optional[List[str]] = None,
         debug: bool = False,
-        **kw: Any
     ) -> SuccessTuple:
     """
     Try two passes of syncing before starting the jobs.
@@ -286,19 +291,20 @@ def verify_initial_syncs(
     from plugins.compose.utils import run_mrsm_command
     from meerschaum._internal.arguments._parse_arguments import parse_dict_to_sysargs
 
-    flags_to_remove = {'-c', '-m', '-l', '-i'}
-    kwarg_sysargs = parse_dict_to_sysargs(kw)
-    indices_to_remove = {i for i, flag in enumerate(kwarg_sysargs) if flag in flags_to_remove}
-    flags = []
-    for i, flag in enumerate(kwarg_sysargs):
-        if i in indices_to_remove or (i - 1) in indices_to_remove:
-            continue
-        flag_str = (
-            json.dumps(flag)
-            if isinstance(flag, dict)
-            else str(flag)
-        )
-        flags.append(flag_str)
+    flags_to_remove = {
+        '-c', '-C', '--connector-keys',
+        '-m', '-M', '--metric-keys',
+        '-l', '-L', '--location-keys',
+        '-i', '-I', '--mrsm-instance', '--instance',
+    }
+    sysargs = sysargs or []
+    indices_to_remove = {i for i, flag in enumerate(sysargs) if flag in flags_to_remove}
+    flags = [
+        flag
+        for flag in sysargs
+        if i not in indices_to_remove
+            or (i - 1) not in indices_to_remove
+    ]
 
     failed_pipes = []
     for pipe in pipes:
