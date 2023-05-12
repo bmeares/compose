@@ -17,6 +17,7 @@ def compose_up(
         force: bool = False,
         verify: bool = False,
         no_jobs: bool = False,
+        sysargs: Optional[List[str]] = None,
         **kw
     ) -> SuccessTuple:
     """
@@ -301,7 +302,7 @@ def verify_initial_syncs(
     indices_to_remove = {i for i, flag in enumerate(sysargs) if flag in flags_to_remove}
     flags = [
         flag
-        for flag in sysargs
+        for i, flag in enumerate(sysargs)
         if i not in indices_to_remove
             or (i - 1) not in indices_to_remove
     ]
