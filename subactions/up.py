@@ -304,7 +304,7 @@ def verify_initial_syncs(
         flag
         for i, flag in enumerate(sysargs)
         if i not in indices_to_remove
-            or (i - 1) not in indices_to_remove
+            and (i - 1) not in indices_to_remove
     ]
 
     failed_pipes = []
