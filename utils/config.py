@@ -13,9 +13,6 @@ import pickle
 import platform
 from meerschaum.utils.typing import Optional, Union, Dict, Any, List
 from meerschaum.utils.warnings import warn, info
-from meerschaum.utils.debug import dprint
-from meerschaum.utils.formatting import pprint
-from meerschaum.utils.packages import run_python_package
 from meerschaum.config._paths import PLUGINS_RESOURCES_PATH
 
 COMPOSE_KEYS = [
@@ -156,10 +153,14 @@ def get_dir_paths(compose_config: Dict[str, Any], dir_name: str) -> List[pathlib
         real_path = pathlib.Path(os.path.realpath(path)).resolve()
         if real_path not in unique_paths:
             unique_paths.append(real_path)
-
+    existing_unique_paths = [path for path in unique_paths if path.exists()]
 
     os.chdir(old_cwd)
-    if len(set(paths)) > 1 and dir_name != 'plugins':
+    if (
+        len(existing_unique_paths) > 1
+        and
+        dir_name != 'plugins'
+    ):
         path = unique_paths[0]
         warn(
             f"Detected multiple values for {dir_name}_dir.\n   "

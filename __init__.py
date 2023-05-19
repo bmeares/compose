@@ -6,15 +6,13 @@
 Manage Meerschaum environments with Compose.
 """
 
-__version__ = '1.4.6'
+__version__ = '1.4.7'
 required = ['python-dotenv', 'envyaml']
 
 import json
 import pathlib
 from meerschaum.utils.typing import SuccessTuple, Optional, List, Dict, Union, Any
 from meerschaum.utils.warnings import warn, info
-from meerschaum.utils.debug import dprint
-from meerschaum.utils.formatting import pprint
 from meerschaum.plugins import add_plugin_argument
 
 add_plugin_argument(
