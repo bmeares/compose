@@ -14,6 +14,7 @@ import platform
 from meerschaum.utils.typing import Optional, Union, Dict, Any, List
 from meerschaum.utils.warnings import warn, info
 from meerschaum.config._paths import PLUGINS_RESOURCES_PATH
+from meerschaum.utils.misc import items_str
 
 COMPOSE_KEYS = [
     'root_dir',
@@ -57,6 +58,7 @@ def infer_compose_file_path(file: Optional[pathlib.Path] = None) -> Union[pathli
 
 def read_compose_config(
         compose_file_path: pathlib.Path,
+        env_file: Optional[pathlib.Path] = None,
         debug: bool = False,
     ) -> Union[Dict[str, Any], None]:
     """
@@ -67,11 +69,54 @@ def read_compose_config(
     compose_file_path: pathlib.Path
         The file path to the compose file.
         This file must be verified to exist.
+
+    env_file: Optional[pathlib.Path], default None
+        Use a specific environment file.
+        Defaults to `./.env`.
+
+    Returns
+    -------
+    The contents of the compose YAML file as a dictionary.
     """
     from plugins.compose.utils.stack import ensure_project_name
     from envyaml import EnvYAML
     from meerschaum.config._read_config import search_and_substitute_config
-    env = EnvYAML(compose_file_path, strict=True)
+    try:
+        env = EnvYAML(
+            yaml_file = compose_file_path,
+            env_file = env_file,
+            include_environment = True,
+            flatten = False,
+            strict = True,
+        )
+    except ValueError as ve:
+        ### Yes, this is a hacky way to build the message,
+        ### but it's the best solution for the time being.
+        missing_vars = (
+            str(ve)
+            .split(' variables ', maxsplit=1)[-1]
+            .split(' are not ', maxsplit=1)[0]
+            .replace(' ', '')
+            .split(',')
+        )
+        message = (
+            items_str(missing_vars)
+            + ' ' + ('is' if len(missing_vars) == 1 else 'are') + ' not defined!\n'
+            + '     Using empty strings for these variables.'
+        )
+        warn(message, stack=False)
+        
+        for var in missing_vars:
+            os.environ[var.lstrip('$')] = ''
+
+        env = EnvYAML(
+            yaml_file = compose_file_path,
+            env_file = env_file,
+            include_environment = True,
+            flatten = False,
+            strict = True,
+        )
+
     compose_config = search_and_substitute_config({k: env[k] for k in COMPOSE_KEYS if k in env})
     compose_config['__file__'] = compose_file_path
     compose_config['root_dir'] = get_dir_paths(compose_config, 'root')[0]
@@ -204,6 +249,11 @@ def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:
     })
     if compose_config.get('environment', None):
         env_dict.update(compose_config['environment'])
+
+    none_keys = [key for key, val in env_dict.items() if val is None]
+    for key in none_keys:
+        env_dict[key] = ''
+
     return env_dict
 
 

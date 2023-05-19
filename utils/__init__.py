@@ -92,6 +92,10 @@ def init(
             + "Create a file mrsm-compose.yaml or specify a path with `--file`."
         )
     init_env(compose_file_path, env_file)
-    compose_config = read_compose_config(compose_file_path, debug=debug)
+    compose_config = read_compose_config(
+        compose_file_path,
+        env_file = env_file,
+        debug = debug,
+    )
     init_root(compose_config)
     return compose_config

@@ -20,6 +20,7 @@ def compose_default(
     """
     from plugins.compose.utils import run_mrsm_command, init
     from plugins.compose.utils.stack import get_project_name
+
     compose_config = init(debug=debug, **kw)
     project_name = get_project_name(compose_config)
 
