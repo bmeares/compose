@@ -99,10 +99,15 @@ def read_compose_config(
             .replace(' ', '')
             .split(',')
         )
+
+        singular = len(missing_vars) == 1
         message = (
             items_str(missing_vars)
-            + ' ' + ('is' if len(missing_vars) == 1 else 'are') + ' not defined!\n'
-            + '     Using empty strings for these variables.'
+            + ' ' + ('is' if singular else 'are') + ' not defined!\n'
+            + '     Using ' + ('an' if singular else '')
+            + ' empty string' + ('' if singular else 's') + ' for '
+            + ('this variable' if singular else 'these variables')
+            + '.'
         )
         warn(message, stack=False)
         
