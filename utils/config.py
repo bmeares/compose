@@ -176,6 +176,7 @@ def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:
     Return a dictionary of environment variables.
     """
     env_dict = {}
+
     if platform.system() == 'Windows':
         app_data = os.environ.get('AppData', '')
         home = os.environ.get('HOME', pathlib.Path.home().as_posix())
@@ -186,6 +187,10 @@ def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:
             'HOMEPATH': homepath,
         })
         env_dict.update(os.environ)
+
+    term = os.environ.get('TERM', None)
+    if term:
+        env_dict['TERM'] = term
 
     env_dict.update({
         'MRSM_ROOT_DIR': str(compose_config['root_dir'].as_posix()),
