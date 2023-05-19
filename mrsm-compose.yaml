@@ -51,5 +51,5 @@ config:
           database: "demo.db"
           flavor: "sqlite"
         secret:
-          uri: "${SECRET_URI2}"
+          uri: "${SECRET_URI}"
         local: "MRSM{meerschaum:connectors:sql:local}"
