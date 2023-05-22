@@ -28,6 +28,7 @@ def compose_up(
     import json
     from plugins.compose.utils import run_mrsm_command, init
     from plugins.compose.utils.stack import get_project_name
+    from plugins.compose.utils.plugins import check_and_install_plugins
     from plugins.compose.utils.pipes import (
         build_custom_connectors, get_defined_pipes,
         instance_pipes_from_pipes_list,
@@ -135,6 +136,7 @@ def compose_up(
             compose_config,
             sysargs,
             debug = debug,
+            **kw
         )
         if not success:
             return success, msg
@@ -227,63 +229,12 @@ def compose_up(
     return True, msg
 
 
-def check_and_install_plugins(compose_config: Dict[str, Any], debug: bool = False) -> SuccessTuple:
-    """
-    Verify that required plugins are available in the root directory
-    and attempt to install missing plugins.
-    """
-    from meerschaum.config import get_config
-    from plugins.compose.utils import run_mrsm_command
-    required_plugins = compose_config.get('plugins', []) 
-    default_repository = compose_config.get(
-        'config',
-        {}
-    ).get(
-        'meerschaum',
-        {}
-    ).get(
-        'default_repository',
-        get_config('meerschaum', 'default_repository')
-    )
-    existing_plugins = run_mrsm_command(
-        ['show', 'plugins', '--nopretty'],
-        compose_config,
-        capture_output = True,
-        debug = debug,
-    ).communicate()[0].strip().decode("utf-8").split("\n")
-    plugins_to_install = [
-        plugin_name
-        for plugin_name in required_plugins
-        if plugin_name not in existing_plugins
-    ]
-    success = True
-    if plugins_to_install:
-        success = run_mrsm_command(
-            (
-                ['install', 'plugins']
-                + plugins_to_install
-                + (['-r', default_repository] if default_repository else [])
-            ),
-            compose_config,
-            capture_output = False,
-            debug = debug,
-        ).wait() == 0
-    msg = (
-        "Success" if success
-        else (
-            "Unable to install plugins "
-            + items_str(plugins_to_install)
-            + f" from repository '{default_repository}'."
-        )
-    )
-    return True, "Success"
-
-
 def verify_initial_syncs(
         pipes: List[mrsm.Pipe],
         compose_config: Dict[str, Any],
         sysargs: Optional[List[str]] = None,
         debug: bool = False,
+        **kw
     ) -> SuccessTuple:
     """
     Try two passes of syncing before starting the jobs.

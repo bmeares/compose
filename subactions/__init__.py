@@ -13,3 +13,4 @@ from .logs import compose_logs
 from .ps import compose_ps
 from .explain import compose_explain
 from .run import compose_run
+from .init import compose_init

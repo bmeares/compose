@@ -6,7 +6,7 @@
 Manage Meerschaum environments with Compose.
 """
 
-__version__ = '1.4.9'
+__version__ = '1.5.0'
 required = ['python-dotenv', 'envyaml']
 
 import json
@@ -53,6 +53,7 @@ from .subactions import (
     compose_ps as _compose_ps,
     compose_explain as _compose_explain,
     compose_run as _compose_run,
+    compose_init as _compose_init,
 )
 
 from .utils import (
