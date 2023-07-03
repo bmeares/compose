@@ -327,7 +327,14 @@ def init_env(
     from dotenv import load_dotenv
     old_cwd = os.getcwd()
     os.chdir(compose_file_path.parent)
-    load_dotenv(env_file)
+    if env_file is None:
+        env_file = '.env'
+    env_path = compose_file_path.parent / env_file
+    try:
+        if env_path.exists():
+            load_dotenv(env_file)
+    except Exception as e:
+        warn(f"Failed to load '{env_path}':\n{e}")
     os.chdir(old_cwd)
 
 
