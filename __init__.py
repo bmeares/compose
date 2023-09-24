@@ -6,7 +6,7 @@
 Manage Meerschaum environments with Compose.
 """
 
-__version__ = '1.5.2'
+__version__ = '1.5.3'
 required = ['python-dotenv', 'envyaml']
 
 import json
@@ -36,9 +36,9 @@ add_plugin_argument(
     ),
 )
 add_plugin_argument(
-    '--verify', action='store_true', help=(
-        "Force a verification sync before bringing up the jobs."
-    ),
+    '--presync', action='store_true', help=(
+        "Run syncs before bringing up the jobs (i.e. used by `mrsm compose run`)."
+    )
 )
 add_plugin_argument(
     '--no-jobs', action='store_true', help=(

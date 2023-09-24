@@ -15,7 +15,7 @@ def compose_up(
         debug: bool = False,
         dry: bool = False,
         force: bool = False,
-        verify: bool = False,
+        presync: bool = False,
         no_jobs: bool = False,
         sysargs: Optional[List[str]] = None,
         **kw
@@ -94,7 +94,7 @@ def compose_up(
                 warn(f"Failed to edit {pipe}.", stack=False)
             updated_registration = True
 
-        if updated_registration or verify or pipe.temporary:
+        if updated_registration or presync or pipe.temporary:
             updated_pipes.append(pipe)
 
     ### Untag pipes that are tagged but no longer defined in mrsm-config.yaml.
@@ -128,10 +128,10 @@ def compose_up(
     ### If any changes have been made to the config file's values,
     ### trigger another verification pass before starting jobs.
     ran_verification_sync = False
-    if verify or (updated_pipes and config_has_changed(compose_config)):
+    if presync or (updated_pipes and config_has_changed(compose_config)):
         ran_verification_sync = True
-        print_options(pipes, header=f"Verifying initial syncs for {len(updated_pipes)} pipes:")
-        success, msg = verify_initial_syncs(
+        print_options(pipes, header=f"Running initial syncs for {len(updated_pipes)} pipes:")
+        success, msg = run_initial_syncs(
             updated_pipes,
             compose_config,
             sysargs,
@@ -229,7 +229,7 @@ def compose_up(
     return True, msg
 
 
-def verify_initial_syncs(
+def run_initial_syncs(
         pipes: List[mrsm.Pipe],
         compose_config: Dict[str, Any],
         sysargs: Optional[List[str]] = None,
