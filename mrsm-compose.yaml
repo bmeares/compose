@@ -2,42 +2,50 @@ root_dir: ./root
 sync:
   schedule: "every 20 seconds"
   timeout_seconds: 20
-  pipes:
-    - connector: "plugin:stress"
-      metric: "test"
 
-    - connector: "sql:demo"
-      metric: "test"
-      target: "stress_test"
-      parameters:
-        query: "SELECT * FROM plugin_stress_test"
-      columns:
-        datetime: "datetime"
-        id: "id"
+pipes:
+  - connector: "plugin:stress"
+    metric: "test"
+    parameters:
+      upsert: true
 
-    - connector: "sql:demo"
-      metric: "test"
-      location: "1"
-      instance: "sql:local"
-      parameters:
-        query: "SELECT * FROM stress_test WHERE id = 1"
-      columns:
-        datetime: "datetime"
-        id: "id"
+  - connector: "sql:demo"
+    metric: "test"
+    target: "stress_test"
+    parameters:
+      query: "SELECT * FROM plugin_stress_test"
+      upsert: true
+    columns:
+      datetime: "datetime"
+      id: "id"
 
-    - connector: "sql:demo"
-      metric: "test"
-      location: "2_3"
-      instance: "sql:secret"
-      parameters:
-        query: "SELECT * FROM stress_test WHERE id IN ('2', '3')"
-      columns:
-        datetime: "datetime"
-        id: "id"
+  - connector: "sql:demo"
+    metric: "test"
+    location: "1"
+    instance: "sql:local"
+    parameters:
+      query: "SELECT * FROM stress_test WHERE id = 1"
+      upsert: true
+    columns:
+      datetime: "datetime"
+      id: "id"
 
-    - connector: "plugin:stress"
-      metric: "test2"
-      temporary: true
+  - connector: "sql:demo"
+    metric: "test"
+    location: "2_3"
+    instance: "sql:secret"
+    parameters:
+      query: "SELECT * FROM stress_test WHERE id IN ('2', '3')"
+      upsert: true
+    columns:
+      datetime: "datetime"
+      id: "id"
+
+  - connector: "plugin:stress"
+    metric: "test2"
+    temporary: true
+    parameters:
+      upsert: true
 
 plugins:
   - "stress"

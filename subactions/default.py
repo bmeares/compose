@@ -26,14 +26,15 @@ def compose_default(
 
     isolated_sysargs = []
     found_file = False
-    for arg in sysargs[1:]:
-        if arg in ('--file', '--env-file'):
-            found_file = True
-            continue
-        if found_file:
-            found_file = False
-            continue
-        isolated_sysargs.append(arg)
+    if sysargs:
+        for arg in sysargs[1:]:
+            if arg in ('--file', '--env-file'):
+                found_file = True
+                continue
+            if found_file:
+                found_file = False
+                continue
+            isolated_sysargs.append(arg)
 
     info(f"Running '{' '.join(action)}' in compose project '{project_name}'...")
     success = run_mrsm_command(

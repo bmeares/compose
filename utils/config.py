@@ -24,6 +24,8 @@ COMPOSE_KEYS = [
     'config',
     'environment',
     'project_name',
+    'pipes',
+    'jobs',
 ]
 DEFAULT_COMPOSE_FILE_CANDIDATES = ['mrsm-compose.yaml', 'mrsm-compose.yml']
 CONFIG_METADATA: Dict[str, Any] = {}

@@ -13,7 +13,7 @@ def get_defined_pipes(
         compose_config: Dict[str, Any],
     ) -> List[mrsm.Pipe]:
     """
-    Return a list of the Pipes defined in `mrsm-config.yaml`.
+    Return a list of the Pipes defined in `mrsm-compose.yaml`.
 
     Parameters
     ----------
@@ -38,7 +38,9 @@ def get_defined_pipes(
         'instance',
         get_config('meerschaum', 'instance')
     )
-    _pipes_meta = compose_config.get('sync', {}).get('pipes', [])
+    sync_pipes_meta = compose_config.get('sync', {}).get('pipes', [])
+    global_pipes_meta = compose_config.get('pipes', [])
+    _pipes_meta = sync_pipes_meta + global_pipes_meta
     pipes_meta = []
     for _pipe_meta in _pipes_meta:
         pipe_meta = copy.deepcopy(_pipe_meta)

@@ -9,10 +9,11 @@ Utility functions.
 import sys
 import subprocess
 import pathlib
-from typing import List, Dict, Any, Optional
+import shlex
+from typing import List, Dict, Any, Optional, Union
 
 def run_mrsm_command(
-        args: List[str],
+        args: Union[List[str], str],
         compose_config: Dict[str, Any],
         capture_output: bool = True,
         debug: bool = False,
@@ -29,6 +30,8 @@ def run_mrsm_command(
     as_proc = kw.pop('as_proc', True)
     venv = kw.pop('venv', None)
     foreground = kw.pop('foreground', True)
+    if isinstance(args, str):
+        args = shlex.split(args)
 
     return run_python_package(
         'meerschaum',
