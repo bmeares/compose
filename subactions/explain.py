@@ -37,6 +37,7 @@ def compose_explain(
     from meerschaum.utils.formatting import get_console
     from meerschaum.utils.formatting._pipes import pipe_repr
     from meerschaum.utils.packages import import_rich, attempt_import
+    from meerschaum.config import get_config
     console = get_console()
     rich = import_rich()
     rich_table, rich_json, rich_text, rich_panel, rich_layout = attempt_import(
@@ -47,9 +48,22 @@ def compose_explain(
         'rich.layout',
     )
     from rich import box
+    pipe_styles = get_config('formatting', 'pipes', '__repr__', 'ansi', 'styles')
 
     rows = []
     for instance, pipes in instance_pipes.items():
+        instance_panel = rich_panel.Panel(
+            rich_text.Text(
+                instance, style=pipe_styles['instance']),
+            title = 'Instance',
+        )
+        rows.append({
+            'pipe_text': instance_panel,
+            'local_text': rich_text.Text(''),
+            'remote_text': rich_text.Text(''),
+            'end_section': rich_text.Text(''),
+        })
+
         for i, pipe in enumerate(pipes):
             clean_pipe = mrsm.Pipe(**pipe.meta)
             remote_parameters = clean_pipe.parameters
@@ -59,9 +73,13 @@ def compose_explain(
                 registration_status = "🔳 Temporary"
             elif not pipe.id:
                 registration_status = "⭕ Not registered"
-            elif remote_parameters != pipe._attributes['parameters']:
-                registration_status = "❌ Outdated"
+            elif remote_parameters != local_parameters:
                 include_remote_parameters = True
+                registration_status = (
+                    "❌ Outdated"
+                    if {**local_parameters, **remote_parameters} != remote_parameters
+                    else "🟨 Compose params added"
+                )
             else:
                 registration_status = "✅ Up-to-date"
 
@@ -86,7 +104,7 @@ def compose_explain(
                 'end_section': end_section,
             })
 
-    include_remote_col = any([(row['remote_text'] is not None) for row in rows])
+    include_remote_col = any([(row.get('remote_text', None) is not None) for row in rows])
     table = rich_table.Table(
         title = f"Pipes in '{project_name}'",
         box = box.MINIMAL,
@@ -103,22 +121,18 @@ def compose_explain(
     for row in rows:
         cols = (
             [
-                row['pipe_text'],
-                row['local_text'],
+                row.get('pipe_text', rich_text.Text('')),
+                row.get('local_text', rich_text.Text('')),
             ]
             + (
                 [
-                    (
-                        row['remote_text']
-                        if row['remote_text'] is not None
-                        else rich_text.Text("✅ Up-to-date")
-                    ),
+                    row.get('remote_text', rich_text.Text('')),
                 ]
                 if include_remote_col
                 else []
             )
         )
-        end_section = row['end_section']
+        end_section = row.get('end_section', False)
         table.add_row(
             *cols,
             end_section = end_section,

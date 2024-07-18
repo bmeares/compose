@@ -6,7 +6,7 @@
 Manage Meerschaum environments with Compose.
 """
 
-__version__ = '1.6.0'
+__version__ = '1.6.1'
 required = ['python-dotenv', 'envyaml']
 
 import json
@@ -89,7 +89,7 @@ def compose(
         file: Optional[pathlib.Path] = None,
         env_file: Optional[pathlib.Path] = None,
         debug: bool = False,
-        **kw
+        **kwargs: Any
     ) -> SuccessTuple:
     """
     Manage an isolated Meerschaum environment with Meerschaum Compose.
@@ -100,5 +100,12 @@ def compose(
         file = file,
         env_file = env_file,
         debug = debug,
-        **kw
+        **kwargs
     )
+
+
+#  def complete_compose(**kwargs: Any) -> List[str]:
+    #  """
+    #  Return the subactions for `compose`.
+    #  """
+    #  return ['up', 'down']

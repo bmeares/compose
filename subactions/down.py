@@ -30,7 +30,7 @@ def compose_down(
     compose_config = init(debug=debug, **kw)
     project_name = get_project_name(compose_config)
     run_mrsm_command(
-        ['stop', 'jobs', '-f'],
+        ['delete', 'jobs', '-f'],
         compose_config,
         capture_output = False,
         debug = debug,

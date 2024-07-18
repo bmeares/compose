@@ -6,6 +6,9 @@
 Entrypoint to the `compose up` command.
 """
 
+import shlex
+import copy
+import json
 import meerschaum as mrsm
 from meerschaum.utils.typing import SuccessTuple, Dict, Any, List, Optional
 from meerschaum.utils.warnings import info, warn
@@ -23,9 +26,6 @@ def compose_up(
     """
     Bring up the configured Meerschaum stack.
     """
-    import shlex
-    import copy
-    import json
     from plugins.compose.utils import run_mrsm_command, init
     from plugins.compose.utils.stack import get_project_name
     from plugins.compose.utils.plugins import check_and_install_plugins
@@ -33,6 +33,7 @@ def compose_up(
         build_custom_connectors, get_defined_pipes,
         instance_pipes_from_pipes_list,
     )
+    from plugins.compose.utils.jobs import get_jobs_commands
     from plugins.compose.utils.config import config_has_changed
     from collections import defaultdict
 
@@ -46,15 +47,7 @@ def compose_up(
     custom_connectors = build_custom_connectors(compose_config)
     pipes = get_defined_pipes(compose_config)
     instance_pipes = instance_pipes_from_pipes_list(pipes)
-
-    ### Some useful parameters from the config file.
     project_name = get_project_name(compose_config)
-    schedule = compose_config.get('sync', {}).get('schedule', None)
-    min_seconds = compose_config.get('sync', {}).get('min_seconds', None)
-    timeout_seconds = compose_config.get('sync', {}).get('timeout_seconds', None)
-    args = compose_config.get('sync', {}).get('args', [])
-    if isinstance(args, str):
-        args = shlex.split(args)
 
     ### Update the parameters in case the remote has changed.
     updated_pipes = []
@@ -62,6 +55,9 @@ def compose_up(
     for pipe in pipes:
         updated_registration = False
         clean_pipe = mrsm.Pipe(**pipe.meta)
+        remote_parameters = clean_pipe.parameters
+        local_parameters = pipe._attributes['parameters']
+
         if pipe.temporary:
             info(f"{pipe} is temporary, will not modify registration.")
         elif not pipe.id:
@@ -85,14 +81,16 @@ def compose_up(
             updated_registration = True
 
         ### Check the remote parameters against the specified parameters in the YAML.
-        elif clean_pipe.parameters != pipe._attributes['parameters']:
-            ### Editing with `--params` in a subprocess only patches,
-            ### so instead replace the parameters dictionary directly.
-            info(f"Updating parameters for {pipe}...")
-            success, msg = pipe.edit(debug=debug)
-            if not success:
-                warn(f"Failed to edit {pipe}.", stack=False)
-            updated_registration = True
+        elif local_parameters != remote_parameters:
+            ### Skip updating if we only have a subset of the remote parameters.
+            if {**local_parameters, **remote_parameters} != remote_parameters:
+                ### Editing with `--params` in a subprocess only patches,
+                ### so instead replace the parameters dictionary directly.
+                info(f"Updating parameters for {pipe}...")
+                success, msg = pipe.edit(debug=debug)
+                if not success:
+                    warn(f"Failed to edit {pipe}.", stack=False)
+                updated_registration = True
 
         if updated_registration or presync or pipe.temporary:
             updated_pipes.append(pipe)
@@ -111,8 +109,12 @@ def compose_up(
     for instance_connector, tagged_pipes in tagged_instance_pipes.items():
         for tagged_pipe in tagged_pipes:
             if tagged_pipe not in pipes:
+                try:
+                    tagged_pipe.parameters.get('tags', [project_name]).remove(project_name)
+                except Exception as e:
+                    warn(f"{tagged_pipe} was incorrectly tagged with '{project_name}'...")
+                    continue
                 info(f"Removing tag '{project_name}' from {tagged_pipe}...")
-                tagged_pipe.parameters.get('tags', [project_name]).remove(project_name)
                 tagged_pipe.edit(debug=debug)
 
     if dry:
@@ -130,7 +132,14 @@ def compose_up(
     ran_verification_sync = False
     if presync or (updated_pipes and config_has_changed(compose_config)):
         ran_verification_sync = True
-        print_options(pipes, header=f"Running initial syncs for {len(updated_pipes)} pipes:")
+        print_options(
+            pipes,
+            header = (
+                f"Running initial syncs for {len(updated_pipes)} pipe"
+                + ('s' if len(updated_pipes) != 1 else '')
+                + ':'
+            ),
+        )
         success, msg = run_initial_syncs(
             updated_pipes,
             compose_config,
@@ -159,46 +168,13 @@ def compose_up(
                     + "."
                 )
                 if updated_pipes
-                else f"Nothing to do."
+                else "Nothing to do."
             )
         )
         return True, msg
 
-    job_names = [project_name + f' sync ({instance_keys})' for instance_keys in instance_pipes]
-
-    additional_args = copy.deepcopy(args)
-    if schedule:
-        if (
-            '--schedule' not in args
-            and
-            '-s' not in args
-            and
-            '--cron' not in args
-        ):
-            additional_args += ['--schedule', schedule]
-    elif '--loop' not in args:
-        additional_args.append('--loop')
-
-    if min_seconds is not None:
-        if '--min-seconds' not in args and '--cooldown' not in args:
-            additional_args += ['--min-seconds', str(min_seconds)]
-
-    if timeout_seconds is not None:
-        if '--timeout-seconds' not in args and '--timeout' not in args:
-            additional_args += ['--timeout-seconds', str(timeout_seconds)]
-
-    commands_to_run = [
-        (
-            [
-                'sync', 'pipes', '-i', instance_keys, '-t', project_name,
-                '--name', job_name, '-f', '-d',
-            ]
-            + additional_args
-        )
-        for instance_keys, job_name in zip(instance_pipes, job_names)
-    ]
-
-    for job_name, command in zip(job_names, commands_to_run):
+    jobs_commands = get_jobs_commands(compose_config)
+    for job_name, job_command in jobs_commands.items():
         info(f"Starting job '{job_name}'...")
         run_mrsm_command(
             ['delete', 'job', job_name, '-f'],
@@ -206,26 +182,44 @@ def compose_up(
             capture_output = (not debug),
             debug = debug,
         )
-        run_mrsm_command(command, compose_config, capture_output=False, debug=debug)
-
-    if force:
         run_mrsm_command(
-            ['show', 'logs'] + job_names,
+            job_command,
             compose_config,
             capture_output = False,
             debug = debug,
         )
 
-    if len(pipes) == 1:
+    if force:
+        run_mrsm_command(
+            ['show', 'logs'] + list(jobs_commands),
+            compose_config,
+            capture_output = False,
+            debug = debug,
+        )
+
+    explicit_jobs = compose_config.get('jobs', {})
+    if explicit_jobs:
+        msg = (
+            f"Running {len(jobs_commands)} background job"
+            + ('s' if len(jobs_commands) != 1 else '')
+            + '.'
+        )
+    elif len(pipes) == 1:
         msg = f"Syncing {pipes[0]} in a background job."
     else:
         msg = (
             f"Syncing {len(pipes)} pipe" + ('s' if len(pipes) != 1 else '')
-            + (" across " if len(job_names) != 1 else " on ")
-            + f"{len(job_names)} instance" + ('s' if len(job_names) != 1 else '')
+            + (" across " if len(jobs_commands) != 1 else " on ")
+            + f"{len(jobs_commands)} instance"
+            + ('s' if len(jobs_commands) != 1 else '')
             + "."
-            + ("\nRun `mrsm compose logs` or pass `-f` to follow logs output." if not force else '')
         )
+
+    msg += (
+        "\nRun `mrsm compose logs` or pass `-f` to follow logs output."
+        if not force
+        else ''
+    )
     return True, msg
 
 
@@ -293,7 +287,7 @@ def run_initial_syncs(
             run_mrsm_command(
                 [
                     'sync',
-                    'pipes', 
+                    'pipes',
                     '-c', str(pipe.connector_keys),
                     '-m', str(pipe.metric_key),
                     '-l', str(pipe.location_key),
