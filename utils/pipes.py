@@ -134,6 +134,8 @@ def build_parent_pipe(
         instance=instance_keys,
         parameters={
             'children': children_pipes_meta,
-            'compose': compose_config,
+            'compose': {
+                'project_name': project_name,
+            },
         },
     )

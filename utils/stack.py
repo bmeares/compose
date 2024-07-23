@@ -18,7 +18,12 @@ def get_project_name(compose_config: Dict[str, Any]) -> str:
     """
     root_project_name = compose_config.get('project_name', None)
     stack_project_name = compose_config.get('stack', {}).get('project_name', None)
-    default_project_name = compose_config['__file__'].parent.stem
+    compose_file_path = compose_config.get('__file__', None)
+    default_project_name = (
+        compose_file_path.parent.stem
+        if compose_file_path is not None
+        else None
+    )
 
     if root_project_name:
         project_name = root_project_name
@@ -29,6 +34,8 @@ def get_project_name(compose_config: Dict[str, Any]) -> str:
             + "    Will use this as the project name for this compose file.",
             stack = False,
         )
+    elif default_project_name is None:
+        raise ValueError("Could not determine the project name. Is `project_name` set?")
     else:
         project_name = default_project_name
 

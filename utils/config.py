@@ -59,10 +59,10 @@ def infer_compose_file_path(file: Optional[pathlib.Path] = None) -> Union[pathli
 
 
 def read_compose_config(
-        compose_file_path: pathlib.Path,
-        env_file: Optional[pathlib.Path] = None,
-        debug: bool = False,
-    ) -> Union[Dict[str, Any], None]:
+    compose_file_path: pathlib.Path,
+    env_file: Optional[pathlib.Path] = None,
+    debug: bool = False,
+) -> Union[Dict[str, Any], None]:
     """
     Read the compose file and only include the top-level keys from `COMPOSE_KEYS`.
 
@@ -125,16 +125,25 @@ def read_compose_config(
         )
 
     compose_config = search_and_substitute_config({k: env[k] for k in COMPOSE_KEYS if k in env})
-    compose_config['__file__'] = compose_file_path
-    compose_config['root_dir'] = get_dir_paths(compose_config, 'root')[0]
     plugins_dir_paths = get_dir_paths(compose_config, 'plugins')
     for plugins_dir_path in plugins_dir_paths:
         if not plugins_dir_path.exists():
             plugins_dir_path.mkdir(parents=True, exist_ok=True)
-    compose_config['plugins_dir'] = plugins_dir_paths
 
+    ### Add metadata keys (project_name, root_dir, plugin_dir, __file__).
+    compose_config['__file__'] = compose_file_path
+    ensure_dir_keys(compose_config)
     ensure_project_name(compose_config)
     return compose_config
+
+
+def ensure_dir_keys(compose_config) -> None:
+    """
+    Add the keys `root_dir` and `plugins_dir`.
+    """
+    compose_config['root_dir'] = get_dir_paths(compose_config, 'root')[0]
+    compose_config['plugins_dir'] = get_dir_paths(compose_config, 'plugins')
+    plugins_dir_paths = get_dir_paths(compose_config, 'plugins')
 
 
 def get_dir_paths(compose_config: Dict[str, Any], dir_name: str) -> List[pathlib.Path]:
@@ -155,13 +164,16 @@ def get_dir_paths(compose_config: Dict[str, Any], dir_name: str) -> List[pathlib
     -------
     The absolute path to the configured directory.
     """
+    compose_file_path = compose_config.get('__file__', None)
     old_cwd = os.getcwd()
-    compose_file_path = compose_config['__file__']
-    os.chdir(compose_file_path.parent)
+    if compose_file_path is not None:
+        os.chdir(compose_file_path.parent)
 
     configured_dir = compose_config.get(f'{dir_name}_dir', -1)
     env_dir = compose_config.get('environment', {}).get(f'MRSM_{dir_name.upper()}_DIR', None)
-    local_dir_path = compose_file_path.parent / dir_name
+    local_dir_path = (
+        compose_file_path.parent / dir_name
+    ) if compose_file_path is not None else None
 
     if isinstance(env_dir, str):
         if env_dir.lstrip().startswith('['):
@@ -196,7 +208,7 @@ def get_dir_paths(compose_config: Dict[str, Any], dir_name: str) -> List[pathlib
 
     paths = (
         configured_dir_paths
-        + [local_dir_path.resolve()]
+        + ([local_dir_path.resolve()] if local_dir_path is not None else [])
         + env_dir_paths
     )
 
@@ -207,7 +219,9 @@ def get_dir_paths(compose_config: Dict[str, Any], dir_name: str) -> List[pathlib
             unique_paths.append(real_path)
     existing_unique_paths = [path for path in unique_paths if path.exists()]
 
-    os.chdir(old_cwd)
+    if compose_file_path is not None:
+        os.chdir(old_cwd)
+
     if (
         len(existing_unique_paths) > 1
         and
