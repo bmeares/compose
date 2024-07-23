@@ -14,6 +14,7 @@ import pathlib
 from meerschaum.utils.typing import SuccessTuple, Optional, List, Dict, Union, Any
 from meerschaum.utils.warnings import warn, info
 from meerschaum.plugins import add_plugin_argument
+from meerschaum.connectors import make_connector
 
 add_plugin_argument(
     '--file', '--compose-file', type=pathlib.Path, help=(
@@ -46,6 +47,8 @@ add_plugin_argument(
     )
 )
 
+from .sync import sync
+
 from .subactions import (
     compose_up as _compose_up,
     compose_down as _compose_down,
@@ -64,6 +67,7 @@ from .utils.pipes import (
     get_defined_pipes,
     build_custom_connectors,
     instance_pipes_from_pipes_list,
+    build_parent_pipe,
 )
 from .utils.stack import (
     get_project_name, 

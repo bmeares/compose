@@ -8,10 +8,12 @@ Utilities for managing defined pipes.
 
 from typing import List, Dict, Any, Union
 import meerschaum as mrsm
+from meerschaum.utils.warnings import warn
 
 def get_defined_pipes(
-        compose_config: Dict[str, Any],
-    ) -> List[mrsm.Pipe]:
+    compose_config: Dict[str, Any],
+    as_meta: bool = False,
+) -> List[Union[mrsm.Pipe, Dict[str, Any]]]:
     """
     Return a list of the Pipes defined in `mrsm-compose.yaml`.
 
@@ -20,9 +22,13 @@ def get_defined_pipes(
     compose_config: Dict[str, Any]
         The Meerschaum compose configuration dictionary.
 
+    as_meta: bool, default False
+        If `True`, return a list of metadata (attributes)
+        rather than `Pipe` objects.
+
     Returns
     -------
-    A list of pipes.
+    A list of pipes (or metadata).
     """
     from plugins.compose.utils.stack import get_project_name
     from meerschaum.config import get_config
@@ -53,6 +59,9 @@ def get_defined_pipes(
                 pipe_meta['instance'] = default_instance
         pipes_meta.append(pipe_meta)
 
+    if as_meta:
+        return pipes_meta
+
     return [mrsm.Pipe(**pipe_meta) for pipe_meta in pipes_meta]
 
 
@@ -61,6 +70,7 @@ def build_custom_connectors(compose_config: Dict[str, Any]) -> Dict[str, Any]:
     This function constructs the custom connectors
     so that they are stored in the in-memory registry.
     """
+    from meerschaum.connectors import types, custom_types
     custom_connectors_config = compose_config.get(
         'config',
         {}
@@ -73,11 +83,15 @@ def build_custom_connectors(compose_config: Dict[str, Any]) -> Dict[str, Any]:
     )
     if not custom_connectors_config:
         return {}
+
     custom_connectors = {}
     for typ, labels in custom_connectors_config.items():
         for label, connector_kwargs in labels.items():
             conn_keys = typ + ':' + label
-            custom_connectors[conn_keys] = mrsm.get_connector(conn_keys, **connector_kwargs)
+            custom_connectors[conn_keys] = mrsm.get_connector(
+                conn_keys,
+                **connector_kwargs
+            )
 
     return custom_connectors
 
@@ -91,3 +105,35 @@ def instance_pipes_from_pipes_list(pipes: List[mrsm.Pipe]) -> Dict[str, List[mrs
     for pipe in pipes:
         instance_pipes[str(pipe.instance_keys)].append(pipe)
     return instance_pipes
+
+
+def build_parent_pipe(
+    compose_config: Dict[str, Any],
+) -> mrsm.Pipe:
+    """
+    Construct a `plugin:compose` pipe from the give project config.
+    """
+    from plugins.compose.utils.stack import get_project_name
+    instance_keys = compose_config.get(
+        'config',
+        {}
+    ).get(
+        'meerschaum',
+        {}
+    ).get(
+        'default_instance',
+        None
+    )
+    _ = build_custom_connectors(compose_config)
+    children_pipes_meta = get_defined_pipes(compose_config, as_meta=True)
+    project_name = get_project_name(
+        compose_config
+    ).replace('-', '_').lstrip('_')
+    return mrsm.Pipe(
+        'plugin:compose', project_name,
+        instance=instance_keys,
+        parameters={
+            'children': children_pipes_meta,
+            'compose': compose_config,
+        },
+    )

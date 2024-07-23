@@ -47,6 +47,9 @@ pipes:
     parameters:
       upsert: true
 
+  - connector: "test:test"
+    metric: "test"
+
 plugins:
   - "stress"
 
@@ -61,3 +64,5 @@ config:
         secret:
           uri: "${SECRET_URI}"
         local: "MRSM{meerschaum:connectors:sql:local}"
+      test:
+        test: {}
