@@ -54,6 +54,7 @@ from .subactions import (
     compose_explain as _compose_explain,
     compose_run as _compose_run,
     compose_init as _compose_init,
+    compose_deploy as _compose_deploy,
 )
 
 from .utils import (
