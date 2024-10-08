@@ -7,39 +7,47 @@ Entrypoint to the `compose down` command.
 """
 
 from meerschaum.utils.warnings import info
-from meerschaum.utils.typing import SuccessTuple, Dict, Any
+from meerschaum.utils.typing import SuccessTuple, Any
 from meerschaum.utils.misc import print_options
 from meerschaum.utils.prompt import yes_no
+from meerschaum.plugins import from_plugin_import
 
 def compose_down(
-        debug: bool = False,
-        drop: bool = False,
-        yes: bool = False,
-        force: bool = False,
-        **kw
-    ) -> SuccessTuple:
+    debug: bool = False,
+    drop: bool = False,
+    yes: bool = False,
+    force: bool = False,
+    **kw: Any
+) -> SuccessTuple:
     """
     Bring up the configured Meerschaum stack.
     """
-    from plugins.compose.utils import run_mrsm_command, init
-    from plugins.compose.utils.pipes import (
-        get_defined_pipes, build_custom_connectors,
+    run_mrsm_command, init = from_plugin_import('compose.utils', 'run_mrsm_command', 'init')
+    (
+        get_defined_pipes,
+        build_custom_connectors,
         instance_pipes_from_pipes_list,
+    ) = from_plugin_import(
+        'compose.utils.pipes',
+        'get_defined_pipes',
+        'build_custom_connectors',
+        'instance_pipes_from_pipes_list',
     )
-    from plugins.compose.utils.stack import get_project_name
+    get_project_name = from_plugin_import('compose.utils.stack', 'get_project_name')
+
     compose_config = init(debug=debug, **kw)
     project_name = get_project_name(compose_config)
     run_mrsm_command(
         ['delete', 'jobs', '-f'],
         compose_config,
-        capture_output = False,
-        debug = debug,
+        capture_output=False,
+        debug=debug,
     )
 
     if not drop:
         return True, "Success"
 
-    custom_connectors = build_custom_connectors(compose_config)
+    _ = build_custom_connectors(compose_config)
     pipes = [pipe for pipe in get_defined_pipes(compose_config) if pipe.id is not None]
     if not pipes:
         return False, "No pipes to delete."
@@ -67,8 +75,8 @@ def compose_down(
         run_mrsm_command(
             ['delete', 'pipes', '-t', project_name, '-i', instance_keys, '-f'],
             compose_config,
-            capture_output = False,
-            debug = debug,
+            capture_output=False,
+            debug=debug,
         )
 
     return True, "Success"

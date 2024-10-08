@@ -7,20 +7,30 @@ Print out the defined pipes and configuration from the compose file.
 """
 
 import meerschaum as mrsm
-from meerschaum.utils.typing import SuccessTuple, Dict, Any, Optional, List
+from meerschaum.utils.typing import SuccessTuple, Any, Optional, List
+from meerschaum.plugins import from_plugin_import
 
 def compose_explain(
-        action: Optional[List[str]] = None,
-        sysargs: Optional[List[str]] = None,
-        nopretty: bool = False,
-        debug: bool = False,
-        **kw,
-    ) -> SuccessTuple:
+    action: Optional[List[str]] = None,
+    sysargs: Optional[List[str]] = None,
+    nopretty: bool = False,
+    debug: bool = False,
+    **kw: Any
+) -> SuccessTuple:
     """
     Execute Meerschaum actions in the isolated environment.
     """
-    import json
-    from plugins.compose.utils import run_mrsm_command, init
+    init = from_plugin_import('compose.utils', 'init')
+    (
+        build_custom_connectors,
+        get_defined_pipes,
+        instance_pipes_from_pipes_list,
+    ) = from_plugin_import(
+        'compose.utils.pipes',
+        'build_custom_connectors',
+        'get_defined_pipes',
+        'instance_pipes_from_pipes_list',
+    )
     from plugins.compose.utils.pipes import (
         build_custom_connectors, get_defined_pipes,
         instance_pipes_from_pipes_list,

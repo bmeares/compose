@@ -15,14 +15,14 @@ from meerschaum.utils.warnings import info, warn
 from meerschaum.utils.misc import items_str, flatten_list, print_options
 
 def compose_up(
-        debug: bool = False,
-        dry: bool = False,
-        force: bool = False,
-        presync: bool = False,
-        no_jobs: bool = False,
-        sysargs: Optional[List[str]] = None,
-        **kw
-    ) -> SuccessTuple:
+    debug: bool = False,
+    dry: bool = False,
+    force: bool = False,
+    presync: bool = False,
+    no_jobs: bool = False,
+    sysargs: Optional[List[str]] = None,
+    **kw
+) -> SuccessTuple:
     """
     Bring up the configured Meerschaum stack.
     """
@@ -58,13 +58,16 @@ def compose_up(
         remote_parameters = clean_pipe.parameters
         local_parameters = pipe._attributes['parameters']
 
+        local_parameters_str = json.dumps(local_parameters, sort_keys=True)
+        remote_parameters_str = json.dumps(remote_parameters, sort_keys=True)
+
         if pipe.temporary:
             info(f"{pipe} is temporary, will not modify registration.")
         elif not pipe.id:
             info(f"Registering {pipe}...")
             success = run_mrsm_command(
                 [
-                    'register', 'pipes', 
+                    'register', 'pipes',
                     '-c', str(pipe.connector_keys),
                     '-m', str(pipe.metric_key),
                     '-l', str(pipe.location_key),
@@ -73,24 +76,22 @@ def compose_up(
                     '--noask',
                 ],
                 compose_config,
-                capture_output = True,
-                debug = debug,
+                capture_output=True,
+                debug=debug,
             ).wait() == 0
             if not success:
                 warn(f"Failed to register {pipe}.", stack=False)
             updated_registration = True
 
         ### Check the remote parameters against the specified parameters in the YAML.
-        elif local_parameters != remote_parameters:
-            ### Skip updating if we only have a subset of the remote parameters.
-            if {**local_parameters, **remote_parameters} != remote_parameters:
-                ### Editing with `--params` in a subprocess only patches,
-                ### so instead replace the parameters dictionary directly.
-                info(f"Updating parameters for {pipe}...")
-                success, msg = pipe.edit(debug=debug)
-                if not success:
-                    warn(f"Failed to edit {pipe}.", stack=False)
-                updated_registration = True
+        elif local_parameters_str != remote_parameters_str:
+            ### Editing with `--params` in a subprocess only patches,
+            ### so instead replace the parameters dictionary directly.
+            info(f"Updating parameters for {pipe}...")
+            success, msg = pipe.edit(debug=debug)
+            if not success:
+                warn(f"Failed to edit {pipe}.", stack=False)
+            updated_registration = True
 
         if updated_registration or presync or pipe.temporary:
             updated_pipes.append(pipe)
@@ -99,10 +100,10 @@ def compose_up(
     from meerschaum.connectors import connectors
     tagged_instance_pipes = {
         instance_keys: mrsm.get_pipes(
-            tags = [project_name],
-            instance = custom_connectors.get(instance_keys, instance_keys),
-            as_list = True,
-            debug = debug,
+            tags=[project_name],
+            instance=custom_connectors.get(instance_keys, instance_keys),
+            as_list=True,
+            debug=debug,
         )
         for instance_keys in instance_pipes
     }

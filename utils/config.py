@@ -11,6 +11,8 @@ import pathlib
 import json
 import pickle
 import platform
+
+import meerschaum as mrsm
 from meerschaum.utils.typing import Optional, Union, Dict, Any, List
 from meerschaum.utils.warnings import warn, info
 from meerschaum.config._paths import PLUGINS_RESOURCES_PATH
@@ -81,10 +83,11 @@ def read_compose_config(
     The contents of the compose YAML file as a dictionary.
     """
     from plugins.compose.utils.stack import ensure_project_name
-    from envyaml import EnvYAML
     from meerschaum.config._read_config import search_and_substitute_config
+
+    envyaml = mrsm.attempt_import('envyaml', venv='compose')
     try:
-        env = EnvYAML(
+        env = envyaml.EnvYAML(
             yaml_file = compose_file_path,
             env_file = env_file,
             include_environment = True,
@@ -116,7 +119,7 @@ def read_compose_config(
         for var in missing_vars:
             os.environ[var.lstrip('$')] = ''
 
-        env = EnvYAML(
+        env = envyaml.EnvYAML(
             yaml_file = compose_file_path,
             env_file = env_file,
             include_environment = True,

@@ -12,13 +12,15 @@ import pathlib
 import shlex
 from typing import List, Dict, Any, Optional, Union
 
+from meerschaum.plugins import from_plugin_import
+
 def run_mrsm_command(
-        args: Union[List[str], str],
-        compose_config: Dict[str, Any],
-        capture_output: bool = True,
-        debug: bool = False,
-        **kw
-    ) -> subprocess.Popen:
+    args: Union[List[str], str],
+    compose_config: Dict[str, Any],
+    capture_output: bool = True,
+    debug: bool = False,
+    **kw
+) -> subprocess.Popen:
     """
     Run a Meerschaum command in a subprocess.
     """
@@ -49,22 +51,22 @@ def run_mrsm_command(
                 else []
             )
         ),
-        env = get_env_dict(compose_config),
-        capture_output = capture_output,
-        as_proc = as_proc,
-        venv = venv,
-        foreground = foreground,
-        debug = debug,
+        env=get_env_dict(compose_config),
+        capture_output=capture_output,
+        as_proc=as_proc,
+        venv=venv,
+        foreground=foreground,
+        debug=debug,
         **kw
     )
 
 
 def init(
-        file: Optional[pathlib.Path] = None,
-        env_file: Optional[pathlib.Path] = None,
-        debug: bool = False,
-        **kw: Any
-    ) -> Dict[str, Any]:
+    file: Optional[pathlib.Path] = None,
+    env_file: Optional[pathlib.Path] = None,
+    debug: bool = False,
+    **kw: Any
+) -> Dict[str, Any]:
     """
     Top-level initalization function for subactions.
 
@@ -82,11 +84,17 @@ def init(
     -------
     The file path to a compose file if it exists, else `None`.
     """
-    from plugins.compose.utils.config import (
+    (
         infer_compose_file_path,
         init_env,
         init_root,
         read_compose_config,
+    ) = from_plugin_import(
+        'compose.utils.config',
+        'infer_compose_file_path',
+        'init_env',
+        'init_root',
+        'read_compose_config',
     )
     compose_file_path = infer_compose_file_path(file)
     if compose_file_path is None:
