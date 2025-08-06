@@ -6,16 +6,21 @@
 Define `mrsm compose run`.
 """
 
-from meerschaum.utils.typing import SuccessTuple, Dict, Any, Optional, List
+from meerschaum.utils.typing import SuccessTuple, Dict, Any
 
-def compose_run(**kw) -> SuccessTuple:
+
+def _compose_run(
+    compose_config: Dict[str, Any],
+    **kw
+) -> SuccessTuple:
     """
     Run a single pass of the compose file (i.e. `mrsm compose up --no-jobs --presync`).
     """
-    from plugins.compose.subactions import compose_up
+    from meerschaum.plugins import from_plugin_import
+    _compose_up = from_plugin_import('compose.subactions.up', '_compose_up')
     kw.update({
         'no_jobs': True,
         'presync': True,
     })
-    return compose_up(**kw)
+    return _compose_up(compose_config, **kw)
 

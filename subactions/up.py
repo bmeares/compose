@@ -6,38 +6,40 @@
 Entrypoint to the `compose up` command.
 """
 
-import shlex
-import copy
 import json
+
 import meerschaum as mrsm
 from meerschaum.utils.typing import SuccessTuple, Dict, Any, List, Optional
 from meerschaum.utils.warnings import info, warn
-from meerschaum.utils.misc import items_str, flatten_list, print_options
+from meerschaum.utils.misc import print_options
 
-def compose_up(
-    debug: bool = False,
+
+def _compose_up(
+    compose_config: Dict[str, Any],
     dry: bool = False,
     force: bool = False,
     presync: bool = False,
     no_jobs: bool = False,
     sysargs: Optional[List[str]] = None,
+    debug: bool = False,
     **kw
 ) -> SuccessTuple:
     """
     Bring up the configured Meerschaum stack.
     """
-    from plugins.compose.utils import run_mrsm_command, init
-    from plugins.compose.utils.stack import get_project_name
-    from plugins.compose.utils.plugins import check_and_install_plugins
-    from plugins.compose.utils.pipes import (
-        build_custom_connectors, get_defined_pipes,
-        instance_pipes_from_pipes_list,
-    )
-    from plugins.compose.utils.jobs import get_jobs_commands
-    from plugins.compose.utils.config import config_has_changed
-    from collections import defaultdict
+    from meerschaum.plugins import from_plugin_import
 
-    compose_config = init(debug=debug, **kw)
+    run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
+    get_project_name = from_plugin_import('compose.utils.stack', 'get_project_name')
+    check_and_install_plugins = from_plugin_import('compose.utils.plugins', 'check_and_install_plugins')
+    build_custom_connectors, get_defined_pipes, instance_pipes_from_pipes_list = from_plugin_import(
+        'compose.utils.pipes',
+        'build_custom_connectors',
+        'get_defined_pipes',
+        'instance_pipes_from_pipes_list',
+    )
+    get_jobs_commands = from_plugin_import('compose.utils.jobs', 'get_jobs_commands')
+    config_has_changed = from_plugin_import('compose.utils.config', 'config_has_changed')
 
     success, msg = check_and_install_plugins(compose_config, debug=debug)
     if not success:
@@ -225,18 +227,17 @@ def compose_up(
 
 
 def run_initial_syncs(
-        pipes: List[mrsm.Pipe],
-        compose_config: Dict[str, Any],
-        sysargs: Optional[List[str]] = None,
-        debug: bool = False,
-        **kw
-    ) -> SuccessTuple:
+    pipes: List[mrsm.Pipe],
+    compose_config: Dict[str, Any],
+    sysargs: Optional[List[str]] = None,
+    debug: bool = False,
+    **kw
+) -> SuccessTuple:
     """
     Try two passes of syncing before starting the jobs.
     """
-    import json
-    from plugins.compose.utils import run_mrsm_command
-    from meerschaum._internal.arguments._parse_arguments import parse_dict_to_sysargs
+    from meerschaum.plugins import from_plugin_import
+    run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
 
     flags_to_remove = {
         '-c', '-C', '--connector-keys',
@@ -305,4 +306,5 @@ def run_initial_syncs(
         if not success:
             warn(f"Failed to sync {pipe}!", stack=False)
             return False, f"Unable to begin syncing {pipe}."
+
     return True, "Success"

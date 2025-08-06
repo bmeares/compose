@@ -7,12 +7,14 @@ Entrypoint to the `compose down` command.
 """
 
 from meerschaum.utils.warnings import info
-from meerschaum.utils.typing import SuccessTuple, Any
+from meerschaum.utils.typing import SuccessTuple, Any, Dict
 from meerschaum.utils.misc import print_options
 from meerschaum.utils.prompt import yes_no
 from meerschaum.plugins import from_plugin_import
 
-def compose_down(
+
+def _compose_down(
+    compose_config: Dict[str, Any],
     debug: bool = False,
     drop: bool = False,
     yes: bool = False,
@@ -22,7 +24,7 @@ def compose_down(
     """
     Bring up the configured Meerschaum stack.
     """
-    run_mrsm_command, init = from_plugin_import('compose.utils', 'run_mrsm_command', 'init')
+    run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
     (
         get_defined_pipes,
         build_custom_connectors,
@@ -35,7 +37,6 @@ def compose_down(
     )
     get_project_name = from_plugin_import('compose.utils.stack', 'get_project_name')
 
-    compose_config = init(debug=debug, **kw)
     project_name = get_project_name(compose_config)
     run_mrsm_command(
         ['delete', 'jobs', '-f'],
@@ -51,6 +52,7 @@ def compose_down(
     pipes = [pipe for pipe in get_defined_pipes(compose_config) if pipe.id is not None]
     if not pipes:
         return False, "No pipes to delete."
+
     instance_pipes = instance_pipes_from_pipes_list(pipes)
 
     print_options(pipes, header="Pipes to be deleted:")

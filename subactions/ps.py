@@ -6,20 +6,21 @@
 Show the jobs' states.
 """
 
-from meerschaum.utils.typing import SuccessTuple, Dict, Any, Optional, List
+from meerschaum.utils.typing import SuccessTuple, Optional, List, Dict, Any
 
-def compose_ps(
-        action: Optional[List[str]] = None,
-        sysargs: Optional[List[str]] = None,
-        nopretty: bool = False,
-        debug: bool = False,
-        **kw,
-    ) -> SuccessTuple:
+def _compose_ps(
+    compose_config: Dict[str, Any],
+    action: Optional[List[str]] = None,
+    sysargs: Optional[List[str]] = None,
+    nopretty: bool = False,
+    debug: bool = False,
+    **kw,
+) -> SuccessTuple:
     """
     Execute Meerschaum actions in the isolated environment.
     """
-    from plugins.compose.utils import run_mrsm_command, init
-    compose_config = init(debug=debug, **kw)
+    from meerschaum.plugins import from_plugin_import
+    run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
 
     success = run_mrsm_command(
         ['show', 'jobs'] + (['--nopretty'] if nopretty else []),

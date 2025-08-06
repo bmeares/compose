@@ -8,14 +8,13 @@ Manage plugins in the isolated environment.
 
 from collections import defaultdict
 from meerschaum.utils.typing import Dict, Any, List, SuccessTuple, Optional
-from meerschaum.utils.packages import run_python_package
-from meerschaum.utils.warnings import info, warn
+from meerschaum.utils.warnings import warn
 from meerschaum.utils.misc import items_str
 
 def get_installed_plugins(
-        compose_config: Dict[str, Any],
-        debug: bool = False,
-    ) -> List[str]:
+    compose_config: Dict[str, Any],
+    debug: bool = False,
+) -> List[str]:
     """
     Return a list of plugins in the `root/plugins/` directory.
     """
@@ -27,10 +26,10 @@ def get_installed_plugins(
 
 
 def install_plugins(
-        plugins: List[str],
-        compose_config: Dict[str, Any],
-        debug: bool = False,
-    ) -> bool:
+    plugins: List[str],
+    compose_config: Dict[str, Any],
+    debug: bool = False,
+) -> bool:
     """
     Install plugins to the `root/plugins/` directory.
     """
@@ -41,10 +40,10 @@ def install_plugins(
 
 
 def check_and_install_plugins(
-        compose_config: Dict[str, Any],
-        debug: bool = False,
-        _existing_plugins: Optional[List[str]] = None,
-    ) -> SuccessTuple:
+    compose_config: Dict[str, Any],
+    debug: bool = False,
+    _existing_plugins: Optional[List[str]] = None,
+) -> SuccessTuple:
     """
     Verify that required plugins are available in the root directory
     and attempt to install missing plugins.
@@ -64,7 +63,7 @@ def check_and_install_plugins(
     ).get(
         'meerschaum', {}
     ).get(
-        'default_repository', get_config('meerschaum', 'default_repository')
+        'repository', get_config('meerschaum', 'repository')
     )
 
     required_plugin_parts = [

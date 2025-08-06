@@ -3,14 +3,15 @@
 # vim:fenc=utf-8
 
 """
-Pass all other subactions to `mrsm stack`.
+Pass all other subactions to `mrsm`.
 """
 
-from meerschaum.utils.typing import SuccessTuple, Any, Optional, List
+from meerschaum.utils.typing import SuccessTuple, Any, Optional, List, Dict
 from meerschaum.utils.warnings import info
-from meerschaum.plugins import from_plugin_import
 
-def compose_default(
+
+def _compose_default(
+    compose_config: Dict[str, Any],
     action: Optional[List[str]] = None,
     sysargs: Optional[List[str]] = None,
     debug: bool = False,
@@ -19,10 +20,12 @@ def compose_default(
     """
     Execute Meerschaum actions in the isolated environment.
     """
-    run_mrsm_command, init = from_plugin_import('compose.utils', 'run_mrsm_command', 'init')
+    from meerschaum.plugins import from_plugin_import
+    run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
+    print('GET PROJECT NAME')
     get_project_name = from_plugin_import('compose.utils.stack', 'get_project_name')
+    print(f"{get_project_name=}")
 
-    compose_config = init(debug=debug, **kw)
     project_name = get_project_name(compose_config)
 
     isolated_sysargs = []

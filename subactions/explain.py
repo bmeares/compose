@@ -7,10 +7,12 @@ Print out the defined pipes and configuration from the compose file.
 """
 
 import meerschaum as mrsm
-from meerschaum.utils.typing import SuccessTuple, Any, Optional, List
+from meerschaum.utils.typing import SuccessTuple, Any, Optional, List, Dict
 from meerschaum.plugins import from_plugin_import
 
-def compose_explain(
+
+def _compose_explain(
+    compose_config: Dict[str, Any],
     action: Optional[List[str]] = None,
     sysargs: Optional[List[str]] = None,
     nopretty: bool = False,
@@ -20,7 +22,6 @@ def compose_explain(
     """
     Execute Meerschaum actions in the isolated environment.
     """
-    init = from_plugin_import('compose.utils', 'init')
     (
         build_custom_connectors,
         get_defined_pipes,
@@ -31,15 +32,10 @@ def compose_explain(
         'get_defined_pipes',
         'instance_pipes_from_pipes_list',
     )
-    from plugins.compose.utils.pipes import (
-        build_custom_connectors, get_defined_pipes,
-        instance_pipes_from_pipes_list,
-    )
-    from plugins.compose.utils.stack import get_project_name
+    get_project_name = from_plugin_import('compose.utils.stack', 'get_project_name')
 
-    compose_config = init(debug=debug, **kw)
     project_name = get_project_name(compose_config)
-    custom_connectors = build_custom_connectors(compose_config)
+    _ = build_custom_connectors(compose_config)
     pipes = get_defined_pipes(compose_config)
     instance_pipes = instance_pipes_from_pipes_list(pipes)
 
@@ -49,7 +45,7 @@ def compose_explain(
     from meerschaum.utils.packages import import_rich, attempt_import
     from meerschaum.config import get_config
     console = get_console()
-    rich = import_rich()
+    _ = import_rich()
     rich_table, rich_json, rich_text, rich_panel, rich_layout = attempt_import(
         'rich.table',
         'rich.json',
@@ -123,7 +119,7 @@ def compose_explain(
         collapse_padding = True,
     )
 
-    table.add_column(f"Defined Pipes")
+    table.add_column("Defined Pipes")
     table.add_column("Compose Parameters")
     if include_remote_col:
         table.add_column("Remote Parameters")

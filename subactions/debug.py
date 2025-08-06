@@ -6,10 +6,12 @@
 Entrypoint to the `compose up` command.
 """
 
-from meerschaum.utils.typing import SuccessTuple, Any, Optional, List
+from meerschaum.utils.typing import SuccessTuple, Any, Optional, List, Dict
 from meerschaum.plugins import from_plugin_import
 
-def compose_debug(
+
+def _compose_debug(
+    compose_config: Dict[str, Any],
     action: Optional[List[str]] = None,
     debug: bool = False,
     **kw: Any
@@ -17,8 +19,7 @@ def compose_debug(
     """
     Run a command from the isolated Meerschaum environment to debug issues.
     """
-    run_mrsm_command, init = from_plugin_import('compose.utils', 'run_mrsm_command', 'init')
-    compose_config = init(debug=debug, **kw)
+    run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
 
     run_mrsm_command(
         action or [],

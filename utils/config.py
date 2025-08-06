@@ -127,7 +127,11 @@ def read_compose_config(
             strict = True,
         )
 
-    compose_config = search_and_substitute_config({k: env[k] for k in COMPOSE_KEYS if k in env})
+    compose_config = {k: env[k] for k in COMPOSE_KEYS if k in env}
+    compose_cf = compose_config.get('config', {})
+    if compose_cf:
+        compose_cf = search_and_substitute_config(compose_cf)
+        compose_config['config'] = compose_cf
     plugins_dir_paths = get_dir_paths(compose_config, 'plugins')
     for plugins_dir_path in plugins_dir_paths:
         if not plugins_dir_path.exists():
@@ -305,12 +309,12 @@ def init_root(compose_config: Dict[str, Any], debug: bool = False) -> bool:
         root_dir_path.mkdir(exist_ok=True)
         info(
             "Initializing Meerschaum root directory:\n    "
-            + f"{root_dir_path}\n    "
-            + "This should only take a few seconds..."
+            f"{root_dir_path}\n    "
+            "This should only take a few seconds..."
         )
 
     success = run_mrsm_command(
-        ['show', 'version'], compose_config, debug=debug,
+        ['show', 'version', '--no-daemon'], compose_config, debug=debug,
     ).wait() == 0
 
     if fresh:
@@ -370,7 +374,6 @@ def write_config_cache(compose_config: Dict[str, Any]) -> None:
     Write the current compose configuration to a cache file.
     """
     config_cache_path = get_config_cache_path(compose_config) 
-    config_cache_parent = config_cache_path.parent
 
     with open(config_cache_path, 'wb') as f:
         pickle.dump(hash_config(compose_config), f)
@@ -395,7 +398,6 @@ def config_has_changed(compose_config: Dict[str, Any]) -> bool:
     """
     if 'config_has_changed' in CONFIG_METADATA:
         return CONFIG_METADATA['config_has_changed']
-    config_cache_path = get_config_cache_path(compose_config)
     config_cache = read_config_cache(compose_config)
     hashed_config = hash_config(compose_config)
     has_changed = (config_cache != hashed_config)

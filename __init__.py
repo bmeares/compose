@@ -50,13 +50,13 @@ add_plugin_argument(
 from .sync import sync
 
 from .subactions import (
-    compose_up as _compose_up,
-    compose_down as _compose_down,
-    compose_logs as _compose_logs,
-    compose_ps as _compose_ps,
-    compose_explain as _compose_explain,
-    compose_run as _compose_run,
-    compose_init as _compose_init,
+    _compose_up,
+    _compose_down,
+    _compose_logs,
+    _compose_ps,
+    _compose_explain,
+    _compose_run,
+    _compose_init,
 )
 
 from .utils import (
@@ -89,27 +89,21 @@ from .utils.config import (
 
 
 def compose(
-        action: Optional[List] = None,
-        file: Optional[pathlib.Path] = None,
-        env_file: Optional[pathlib.Path] = None,
-        debug: bool = False,
-        **kwargs: Any
-    ) -> SuccessTuple:
+    action: Optional[List] = None,
+    file: Optional[pathlib.Path] = None,
+    env_file: Optional[pathlib.Path] = None,
+    debug: bool = False,
+    **kwargs: Any
+) -> SuccessTuple:
     """
     Manage an isolated Meerschaum environment with Meerschaum Compose.
     """
-    from .subactions import compose_default
-    return compose_default(
-        action = action,
-        file = file,
-        env_file = env_file,
-        debug = debug,
+    from .subactions import _compose_default
+
+    return _compose_default(
+        action=action,
+        file=file,
+        env_file=env_file,
+        debug=debug,
         **kwargs
     )
-
-
-#  def complete_compose(**kwargs: Any) -> List[str]:
-    #  """
-    #  Return the subactions for `compose`.
-    #  """
-    #  return ['up', 'down']

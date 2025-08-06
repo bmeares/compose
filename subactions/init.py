@@ -8,17 +8,18 @@ Entrypoint to `mrsm compose init`.
 
 import os
 import pathlib
-from meerschaum.utils.typing import SuccessTuple, Dict, Any, Optional
-from meerschaum.utils.warnings import info, warn
-from meerschaum.utils.misc import items_str
+from meerschaum.utils.typing import SuccessTuple, Any, Optional
+from meerschaum.utils.warnings import info
 
-def compose_init(
-        debug: bool = False,
-        file: Optional[pathlib.Path] = None,
-        yes: bool = False,
-        force: bool = False,
-        **kw: Any
-    ) -> SuccessTuple:
+
+def _compose_init(
+    _,
+    debug: bool = False,
+    file: Optional[pathlib.Path] = None,
+    yes: bool = False,
+    force: bool = False,
+    **kw: Any
+) -> SuccessTuple:
     """
     Install the required dependencies for this compose project.
     This is useful for building Docker images.
