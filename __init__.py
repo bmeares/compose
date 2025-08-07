@@ -72,6 +72,15 @@ def compose(
     )
 
 
-def complete_compose(**kwargs):
-    get_subactions = from_plugin_import('compose.subactions', 'get_subactions')
-    return get_subactions()
+_get_subactions = from_plugin_import('compose.subactions', 'get_subactions')
+def complete_compose(action: Optional[List[str]] = None, **kwargs):
+    subactions = _get_subactions()
+    if not action:
+        return subactions
+
+    possibilities = []
+    for subaction in subactions:
+        if subaction.startswith(action[0]) and action[0] != subaction:
+            possibilities.append(subaction)
+
+    return possibilities

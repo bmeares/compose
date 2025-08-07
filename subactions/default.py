@@ -43,5 +43,6 @@ def _compose_default(
         isolated_sysargs,
         compose_config,
         debug=debug,
+        _subprocess=True,
     )
     return success, msg

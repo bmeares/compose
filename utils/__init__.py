@@ -24,6 +24,7 @@ def run_mrsm_command(
     compose_config: Dict[str, Any],
     capture_output: bool = False,
     debug: bool = False,
+    _subprocess: bool = False,
     **kw
 ) -> mrsm.SuccessTuple:
     """
@@ -58,7 +59,7 @@ def run_mrsm_command(
     env = get_env_dict(compose_config)
     root_dir_path = compose_config.get('root_dir', ROOT_DIR_PATH)
 
-    if capture_output:
+    if capture_output or _subprocess:
         success = run_python_package(
             'meerschaum',
             sysargs,
@@ -69,7 +70,7 @@ def run_mrsm_command(
             foreground=True,
             debug=debug,
             **kw
-        )
+        ) == 0
         if success:
             return success, "Success"
         return False, f"Failed to execute sysargs:\n{sysargs}"
@@ -105,7 +106,7 @@ def init(
     -------
     The file path to a compose file if it exists, else `None`.
     """
-    from meerschaum.utils.misc import make_symlink
+    from meerschaum.plugins import inject_plugin_path
     (
         infer_compose_file_path,
         init_env,
@@ -128,22 +129,15 @@ def init(
     init_env(compose_file_path, env_file)
     compose_config = read_compose_config(
         compose_file_path,
-        env_file = env_file,
-        debug = debug,
+        env_file=env_file,
+        debug=debug,
     )
     init_root(compose_config)
     root_dir_path = compose_config['root_dir']
-    internal_plugins_compose_path = root_dir_path / '.internal' / 'plugins' / 'compose'
+    plugins_resources_path = root_dir_path / '.internal' / 'plugins'
+    internal_plugins_compose_path = plugins_resources_path / 'compose'
     current_package_file = pathlib.Path(__file__).parent.parent
     if not internal_plugins_compose_path.exists():
         internal_plugins_compose_path.parent.mkdir(parents=True, exist_ok=True)
-        symlink_success, symlink_msg = make_symlink(
-            current_package_file,
-            internal_plugins_compose_path,
-        )
-        if not symlink_success:
-            raise EnvironmentError(
-                f"Failed to symlink `compose` into '{root_dir_path}':\n{symlink_msg}"
-            )
-
+        inject_plugin_path(current_package_file, plugins_resources_path=plugins_resources_path)
     return compose_config

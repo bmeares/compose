@@ -18,17 +18,15 @@ def get_installed_plugins(
     debug: bool = False,
 ) -> List[str]:
     """
-    Return a list of plugins in the `root/plugins/` directory.
+    Return a list of plugins in the configured `plugins` directories.
     """
-    from meerschaum.config import replace_config
     from meerschaum.config.environment import replace_env
     from meerschaum.plugins import get_plugins_names, from_plugin_import
 
     get_env_dict = from_plugin_import('compose.utils.config', 'get_env_dict')
     
-    with replace_config(compose_config.get('config', {})):
-        with replace_env(get_env_dict(compose_config)):
-            return get_plugins_names()
+    with replace_env(get_env_dict(compose_config)):
+        return get_plugins_names()
 
     #  from plugins.compose.utils import run_mrsm_command
     #  proc = run_mrsm_command(
@@ -47,7 +45,9 @@ def install_plugins(
     """
     from plugins.compose.utils import run_mrsm_command
     return run_mrsm_command(
-        ['install', 'plugins'] + plugins, compose_config, debug=debug,
+        ['install', 'plugins'] + plugins,
+        compose_config,
+        debug=debug,
     )
 
 

@@ -36,7 +36,7 @@ def _do_subaction(
     from meerschaum.config import replace_config
     from meerschaum.config._default import default_config
     from meerschaum.config.environment import replace_env
-    from meerschaum.plugins import from_plugin_import
+    from meerschaum.plugins import from_plugin_import, unload_plugins, load_plugins, get_plugins_names
 
     get_env_dict = from_plugin_import('compose.utils.config', 'get_env_dict')
     init = from_plugin_import('compose.utils', 'init')
@@ -57,9 +57,18 @@ def _do_subaction(
         )
     )
 
+    old_plugins_names = get_plugins_names()
+    unload_plugins([plugin_name for plugin_name in old_plugins_names if plugin_name != 'compose'])
+
     with replace_config(config):
         with replace_env(env):
-            return subaction_function(compose_config, debug=debug, **kwargs)
+            plugins_names = get_plugins_names()
+            load_plugins()
+            success, msg = subaction_function(compose_config, debug=debug, **kwargs)
+            unload_plugins([plugin_name for plugin_name in plugins_names if plugin_name != 'compose'])
+
+    load_plugins()
+    return success, msg
 
 
 _subaction_partials = {
