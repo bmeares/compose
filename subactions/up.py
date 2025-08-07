@@ -67,7 +67,7 @@ def _compose_up(
             info(f"{pipe} is temporary, will not modify registration.")
         elif not pipe.id:
             info(f"Registering {pipe}...")
-            success = run_mrsm_command(
+            success, msg = run_mrsm_command(
                 [
                     'register', 'pipes',
                     '-c', str(pipe.connector_keys),
@@ -78,9 +78,9 @@ def _compose_up(
                     '--noask',
                 ],
                 compose_config,
-                capture_output=True,
+                capture_output=False,
                 debug=debug,
-            ).wait() == 0
+            )
             if not success:
                 warn(f"Failed to register {pipe}.", stack=False)
             updated_registration = True
@@ -257,7 +257,7 @@ def run_initial_syncs(
     failed_pipes = []
     for pipe in pipes:
         info(f"Syncing {pipe}...")
-        success = (
+        success, msg = (
             run_mrsm_command(
                 [
                     'sync',
@@ -270,13 +270,13 @@ def run_initial_syncs(
                 compose_config,
                 capture_output = False,
                 debug = debug,
-            ).wait() == 0
+            )
             if not pipe.temporary
-            else pipe.sync(debug=debug, **kw)[0]
+            else pipe.sync(debug=debug, **kw)
         )
 
         if not success:
-            warn(f"Failed to sync {pipe}.", stack=False)
+            warn(f"Failed to sync {pipe}:\n{msg}", stack=False)
             failed_pipes.append(pipe)
 
     if not failed_pipes:
@@ -285,7 +285,7 @@ def run_initial_syncs(
     ### Pipes may be interdependent, so try again if we encounter any errors.
     for pipe in failed_pipes:
         info(f"Retry syncing {pipe}...")
-        success = (
+        success, msg = (
             run_mrsm_command(
                 [
                     'sync',
@@ -298,13 +298,13 @@ def run_initial_syncs(
                 compose_config,
                 capture_output = False,
                 debug = debug,
-            ).wait() == 0
+            )
             if not pipe.temporary
             else pipe.sync(debug=debug, **kw)[0]
         )
 
         if not success:
-            warn(f"Failed to sync {pipe}!", stack=False)
-            return False, f"Unable to begin syncing {pipe}."
+            warn(f"Failed to sync {pipe}:\n{msg}", stack=False)
+            return False, f"Unable to begin syncing {pipe}:\n{msg}"
 
     return True, "Success"

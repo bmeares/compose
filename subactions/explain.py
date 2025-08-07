@@ -112,11 +112,12 @@ def _compose_explain(
 
     include_remote_col = any([(row.get('remote_text', None) is not None) for row in rows])
     table = rich_table.Table(
-        title = f"Pipes in '{project_name}'",
-        box = box.MINIMAL,
-        show_header = True,
-        expand = True,
-        collapse_padding = True,
+        title=f"Pipes in '{project_name}'",
+        box=box.MINIMAL,
+        show_header=True,
+        expand=True,
+        collapse_padding=True,
+        title_style='bold',
     )
 
     table.add_column("Defined Pipes")
@@ -147,13 +148,6 @@ def _compose_explain(
             table.add_row('', '')
 
 
-    config_panel = rich_panel.Panel(
-        rich_json.JSON.from_data(compose_config.get('config')),
-        title = f"MRSM_CONFIG for '{project_name}'",
-        box = box.MINIMAL,
-    )
-
-    console.print(config_panel)
     console.print(table)
 
     success, msg = True, "Success"

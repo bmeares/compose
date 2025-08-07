@@ -6,15 +6,16 @@
 Manage Meerschaum environments with Compose.
 """
 
-__version__ = '1.6.2'
+import pathlib
+
+from meerschaum.utils.typing import SuccessTuple, Optional, List, Any
+from meerschaum.plugins import add_plugin_argument, make_action, from_plugin_import
+
+from .sync import sync
+
+__version__ = '2.0.0'
 required = ['python-dotenv', 'envyaml']
 
-import json
-import pathlib
-from meerschaum.utils.typing import SuccessTuple, Optional, List, Dict, Union, Any
-from meerschaum.utils.warnings import warn, info
-from meerschaum.plugins import add_plugin_argument
-from meerschaum.connectors import make_connector
 
 add_plugin_argument(
     '--file', '--compose-file', type=pathlib.Path, help=(
@@ -47,47 +48,8 @@ add_plugin_argument(
     )
 )
 
-from .sync import sync
 
-from .subactions import (
-    _compose_up,
-    _compose_down,
-    _compose_logs,
-    _compose_ps,
-    _compose_explain,
-    _compose_run,
-    _compose_init,
-)
-
-from .utils import (
-    run_mrsm_command,
-    init,
-)
-from .utils.pipes import (
-    get_defined_pipes,
-    build_custom_connectors,
-    instance_pipes_from_pipes_list,
-    build_parent_pipe,
-)
-from .utils.stack import (
-    get_project_name, 
-    ensure_project_name,
-)
-from .utils.config import (
-    infer_compose_file_path, 
-    read_compose_config,
-    get_dir_paths,
-    get_env_dict,
-    init_root,
-    init_env,
-    get_config_cache_path,
-    write_config_cache,
-    read_config_cache,
-    config_has_changed,
-    hash_config,
-)
-
-
+@make_action(daemon=False)
 def compose(
     action: Optional[List] = None,
     file: Optional[pathlib.Path] = None,
@@ -98,12 +60,18 @@ def compose(
     """
     Manage an isolated Meerschaum environment with Meerschaum Compose.
     """
-    from .subactions import _compose_default
-
-    return _compose_default(
-        action=action,
+    _do_subaction = from_plugin_import('compose.subactions', '_do_subaction')
+    subaction = action[0] if action else 'default'
+    return _do_subaction(
+        subaction,
+        action=(action or []),
         file=file,
         env_file=env_file,
         debug=debug,
         **kwargs
     )
+
+
+def complete_compose(**kwargs):
+    get_subactions = from_plugin_import('compose.subactions', 'get_subactions')
+    return get_subactions()

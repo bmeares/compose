@@ -8,15 +8,19 @@ The entrypoint for subactions to the `compose` command.
 
 import os
 import pathlib
+import copy
 from functools import partial as _partial
 
 from meerschaum.plugins import from_plugin_import
 
-_subactions = [
-    filename[:(-1 * len('.py'))]
-    for filename in os.listdir(pathlib.Path(__file__).parent)
-    if filename.endswith('.py') and not filename.startswith('_')
-]
+def get_subactions():
+    return [
+        filename[:(-1 * len('.py'))]
+        for filename in os.listdir(pathlib.Path(__file__).parent)
+        if filename.endswith('.py') and not filename.startswith('_')
+    ]
+
+_subactions = get_subactions()
 
 _original_subaction_functions = {
     _subaction: from_plugin_import(f'compose.subactions.{_subaction}', f"_compose_{_subaction}")
@@ -30,8 +34,8 @@ def _do_subaction(
     **kwargs
 ):
     from meerschaum.config import replace_config
+    from meerschaum.config._default import default_config
     from meerschaum.config.environment import replace_env
-    #  from meerschaum.config.paths import replace_root_dir
     from meerschaum.plugins import from_plugin_import
 
     get_env_dict = from_plugin_import('compose.utils.config', 'get_env_dict')
@@ -43,10 +47,18 @@ def _do_subaction(
         )
     )
 
-    compose_config = init(debug=debug) if subaction != 'init' else {}
-    
-    with replace_config(compose_config.get('config', {})):
-        with replace_env(get_env_dict(compose_config)):
+    compose_config = init(debug=debug, **kwargs) if subaction != 'init' else {}
+    config = copy.deepcopy(compose_config.get('config', default_config))
+    env = get_env_dict(
+        (
+            compose_config
+            if compose_config
+            else {'config': config}
+        )
+    )
+
+    with replace_config(config):
+        with replace_env(env):
             return subaction_function(compose_config, debug=debug, **kwargs)
 
 
@@ -54,5 +66,4 @@ _subaction_partials = {
     f"_compose_{_subaction}": _partial(_do_subaction, _subaction)
     for _subaction in _subactions
 }
-
 globals().update(_subaction_partials)

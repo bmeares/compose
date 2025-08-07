@@ -66,27 +66,31 @@ def _compose_init(
         return plugins_success, plugins_msg
 
     if existing_plugins:
-        install_required_success = (
+        install_required_success, install_required_msg = (
             run_mrsm_command(
                 ['install', 'required'] + existing_plugins,
                 compose_config,
                 capture_output = False,
                 debug = debug,
-            ).wait() == 0
+            )
         )
         if not install_required_success:
-            return False, f"Failed to install required packages for project '{project_name}'."
+            return (
+                False,
+                f"Failed to install required packages for project '{project_name}':\n"
+                f"{install_required_msg}"
+            )
 
-        setup_success = (
+        setup_success, setup_msg = (
             run_mrsm_command(
                 ['setup', 'plugins'],
                 compose_config,
                 capture_output = False,
                 debug = debug,
-            ).wait() == 0
+            )
         )
         if not setup_success:
-            return False, f"Failed to setup plugins for project '{project_name}'."
+            return False, f"Failed to setup plugins for project '{project_name}':\n{setup_msg}"
 
     return True, f"Finished initializing project '{project_name}'."
 

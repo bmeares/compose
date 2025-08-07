@@ -7,9 +7,11 @@ Manage plugins in the isolated environment.
 """
 
 from collections import defaultdict
+
+import meerschaum as mrsm
 from meerschaum.utils.typing import Dict, Any, List, SuccessTuple, Optional
 from meerschaum.utils.warnings import warn
-from meerschaum.utils.misc import items_str
+
 
 def get_installed_plugins(
     compose_config: Dict[str, Any],
@@ -18,25 +20,35 @@ def get_installed_plugins(
     """
     Return a list of plugins in the `root/plugins/` directory.
     """
-    from plugins.compose.utils import run_mrsm_command
-    proc = run_mrsm_command(
-        ['show', 'plugins', '--nopretty'], compose_config, debug=debug,
-    )
-    return [line.decode('utf-8').strip('\n') for line in proc.stdout.readlines()]
+    from meerschaum.config import replace_config
+    from meerschaum.config.environment import replace_env
+    from meerschaum.plugins import get_plugins_names, from_plugin_import
+
+    get_env_dict = from_plugin_import('compose.utils.config', 'get_env_dict')
+    
+    with replace_config(compose_config.get('config', {})):
+        with replace_env(get_env_dict(compose_config)):
+            return get_plugins_names()
+
+    #  from plugins.compose.utils import run_mrsm_command
+    #  proc = run_mrsm_command(
+        #  ['show', 'plugins', '--nopretty'], compose_config, debug=debug,
+    #  )
+    #  return [line.decode('utf-8').strip('\n') for line in proc.stdout.readlines()]
 
 
 def install_plugins(
     plugins: List[str],
     compose_config: Dict[str, Any],
     debug: bool = False,
-) -> bool:
+) -> mrsm.SuccessTuple:
     """
     Install plugins to the `root/plugins/` directory.
     """
     from plugins.compose.utils import run_mrsm_command
     return run_mrsm_command(
         ['install', 'plugins'] + plugins, compose_config, debug=debug,
-    ).wait() == 0
+    )
 
 
 def check_and_install_plugins(
@@ -91,23 +103,14 @@ def check_and_install_plugins(
 
     success, msg = True, ""
     for repo_keys, plugin_names in required_plugins.items():
-        install_success = run_mrsm_command(
+        install_success, install_msg = run_mrsm_command(
             (
                 ['install', 'plugins']
                 + plugin_names
                 + (['-r', repo_keys] if repo_keys else [])
             ),
             compose_config,
-            capture_output = False,
-            debug = debug,
-        ).wait() == 0
-        install_msg = (
-            ""
-            if install_success
-            else (
-                f"Failed to install plugins {items_str(plugin_names)} "
-                + f"from repository {repo_keys or default_repository}.\n"
-            )
+            debug=debug,
         )
         if not install_success:
             warn(install_msg, stack=False)

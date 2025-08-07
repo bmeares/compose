@@ -8,6 +8,7 @@ Pass all other subactions to `mrsm`.
 
 from meerschaum.utils.typing import SuccessTuple, Any, Optional, List, Dict
 from meerschaum.utils.warnings import info
+from meerschaum.plugins import from_plugin_import
 
 
 def _compose_default(
@@ -20,11 +21,8 @@ def _compose_default(
     """
     Execute Meerschaum actions in the isolated environment.
     """
-    from meerschaum.plugins import from_plugin_import
     run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
-    print('GET PROJECT NAME')
     get_project_name = from_plugin_import('compose.utils.stack', 'get_project_name')
-    print(f"{get_project_name=}")
 
     project_name = get_project_name(compose_config)
 
@@ -41,12 +39,9 @@ def _compose_default(
             isolated_sysargs.append(arg)
 
     info(f"Running '{' '.join(action)}' in compose project '{project_name}'...")
-    success = run_mrsm_command(
+    success, msg = run_mrsm_command(
         isolated_sysargs,
         compose_config,
-        capture_output=False,
         debug=debug,
-    ).wait() == 0
-    msg = "Success" if success else f"Failed to execute '{' '.join(action)}'."
-
+    )
     return success, msg

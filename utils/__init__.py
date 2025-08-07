@@ -7,64 +7,79 @@ Utility functions.
 """
 
 import subprocess
+import copy
 import pathlib
 import shlex
 from typing import List, Dict, Any, Optional, Union
 
+import meerschaum as mrsm
 from meerschaum.plugins import from_plugin_import
+get_debug_args = from_plugin_import('compose.utils.debug', 'get_debug_args')
+get_env_dict = from_plugin_import('compose.utils.config', 'get_env_dict')
+get_project_name = from_plugin_import('compose.utils.stack', 'get_project_name')
 
 
 def run_mrsm_command(
     args: Union[List[str], str],
     compose_config: Dict[str, Any],
-    capture_output: bool = True,
+    capture_output: bool = False,
     debug: bool = False,
     **kw
-) -> subprocess.Popen:
+) -> mrsm.SuccessTuple:
     """
     Run a Meerschaum command in a subprocess.
     """
     from meerschaum.config.environment import replace_env
     from meerschaum.utils.packages import run_python_package
     from meerschaum.config import replace_config
-
-    get_debug_args = from_plugin_import('compose.utils.debug', 'get_debug_args')
-    get_env_dict = from_plugin_import('compose.utils.config', 'get_env_dict')
-    get_project_name = from_plugin_import('compose.utils.stack', 'get_project_name')
+    from meerschaum.config.paths import replace_root_dir, ROOT_DIR_PATH
+    from meerschaum._internal.entry import entry
 
     project_name = get_project_name(compose_config)
-    as_proc = kw.pop('as_proc', True)
-    venv = kw.pop('venv', None)
-    foreground = kw.pop('foreground', True)
     if isinstance(args, str):
         args = shlex.split(args)
 
-    with replace_env(get_env_dict(compose_config)):
-        with replace_config(compose_config.get('config', {})):
-            return run_python_package(
-                'meerschaum',
-                (
-                    args
-                    + (get_debug_args(debug) if '--debug' not in args else [])
-                    + (
-                        ['--tags', project_name]
-                        if (
-                            '--tags' not in args
-                            and
-                            '-t' not in args
-                            and not ' '.join(args).startswith('stack ')
-                        )
-                        else []
-                    )
-                ),
-                env=get_env_dict(compose_config),
-                capture_output=capture_output,
-                as_proc=as_proc,
-                venv=venv,
-                foreground=foreground,
-                debug=debug,
-                **kw
+    sysargs = (
+        args
+        + (get_debug_args(debug) if '--debug' not in args else [])
+        + (
+            ['--tags', project_name]
+            if (
+                '--tags' not in args
+                and
+                '-t' not in args
+                and not ' '.join(args).startswith('stack ')
             )
+            else []
+        )
+    )
+
+    config = copy.deepcopy(compose_config.get('config', {}))
+    env = get_env_dict(compose_config)
+    root_dir_path = compose_config.get('root_dir', ROOT_DIR_PATH)
+
+    if capture_output:
+        success = run_python_package(
+            'meerschaum',
+            sysargs,
+            env=env,
+            capture_output=capture_output,
+            as_proc=False,
+            venv=None,
+            foreground=True,
+            debug=debug,
+            **kw
+        )
+        if success:
+            return success, "Success"
+        return False, f"Failed to execute sysargs:\n{sysargs}"
+
+    with replace_root_dir(root_dir_path):
+        with replace_config(config):
+            with replace_env(env):
+                success, msg = entry(sysargs, _use_cli_daemon=True)
+
+    return success, msg
 
 
 def init(
