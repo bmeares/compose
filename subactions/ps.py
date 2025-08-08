@@ -8,6 +8,7 @@ Show the jobs' states.
 
 from meerschaum.utils.typing import SuccessTuple, Optional, List, Dict, Any
 
+
 def _compose_ps(
     compose_config: Dict[str, Any],
     action: Optional[List[str]] = None,
@@ -22,12 +23,10 @@ def _compose_ps(
     from meerschaum.plugins import from_plugin_import
     run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
 
-    success = run_mrsm_command(
+    success, msg = run_mrsm_command(
         ['show', 'jobs'] + (['--nopretty'] if nopretty else []),
         compose_config,
         capture_output = False,
         debug = debug,
-    ).wait() == 0
-    msg = "Success" if success else f"Failed to execute '{' '.join(action)}'."
-
+    )
     return success, msg

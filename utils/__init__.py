@@ -24,7 +24,7 @@ def run_mrsm_command(
     compose_config: Dict[str, Any],
     capture_output: bool = False,
     debug: bool = False,
-    _subprocess: bool = False,
+    _subprocess: Optional[bool] = None,
     **kw
 ) -> mrsm.SuccessTuple:
     """
@@ -58,6 +58,9 @@ def run_mrsm_command(
     config = copy.deepcopy(compose_config.get('config', {}))
     env = get_env_dict(compose_config)
     root_dir_path = compose_config.get('root_dir', ROOT_DIR_PATH)
+
+    if _subprocess is None:
+        _subprocess = compose_config.get('isolation', None) == 'subprocess'
 
     if capture_output or _subprocess:
         success = run_python_package(

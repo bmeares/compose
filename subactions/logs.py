@@ -23,12 +23,10 @@ def _compose_logs(
     from meerschaum.plugins import from_plugin_import
     run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
 
-    success = run_mrsm_command(
+    success, msg = run_mrsm_command(
         ['show', 'logs'] + (['--nopretty'] if nopretty else []),
         compose_config,
         capture_output = False,
         debug = debug,
-    ).wait() == 0
-    msg = "Success" if success else f"Failed to execute '{' '.join(action)}'."
-
+    )
     return success, msg

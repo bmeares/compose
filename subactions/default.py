@@ -43,6 +43,6 @@ def _compose_default(
         isolated_sysargs,
         compose_config,
         debug=debug,
-        _subprocess=True,
+        _subprocess=(compose_config.get('isolation', None) == 'subprocess'),
     )
     return success, msg

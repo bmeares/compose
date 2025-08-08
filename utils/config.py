@@ -18,6 +18,7 @@ from meerschaum.utils.warnings import warn, info
 from meerschaum.config._paths import PLUGINS_RESOURCES_PATH
 from meerschaum.plugins import from_plugin_import
 from meerschaum.utils.misc import items_str
+from meerschaum.utils.dtypes import json_serialize_value
 
 COMPOSE_KEYS = [
     'root_dir',
@@ -29,6 +30,7 @@ COMPOSE_KEYS = [
     'project_name',
     'pipes',
     'jobs',
+    'isolation',
 ]
 DEFAULT_COMPOSE_FILE_CANDIDATES = ['mrsm-compose.yaml', 'mrsm-compose.yml']
 CONFIG_METADATA: Dict[str, Any] = {}
@@ -139,6 +141,12 @@ def read_compose_config(
     for plugins_dir_path in plugins_dir_paths:
         if not plugins_dir_path.exists():
             plugins_dir_path.mkdir(parents=True, exist_ok=True)
+
+    compose_config['isolation'] = (
+        'subprocess'
+        if compose_config.get('isolation', None) == 'subprocess'
+        else 'config'
+    )
 
     ### Add metadata keys (project_name, root_dir, plugin_dir, __file__).
     compose_config['__file__'] = compose_file_path
@@ -283,6 +291,11 @@ def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:
                 separators=(',', ':'),
             )
         )
+
+    env_dict['MRSM__COMPOSE_CONFIG'] = json.dumps(
+        compose_config, separators=(',', ':'),
+        default=json_serialize_value,
+    )
 
     config = compose_config.get('config', None)
     if config:
