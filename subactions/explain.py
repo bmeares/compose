@@ -84,7 +84,7 @@ def _compose_explain(
                 registration_status = (
                     "❌ Outdated"
                     if {**local_parameters, **remote_parameters} != remote_parameters
-                    else "🟨 Compose params added"
+                    else "🟨 Params added"
                 )
             else:
                 registration_status = "✅ Up-to-date"

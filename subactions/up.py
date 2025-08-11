@@ -40,6 +40,11 @@ def _compose_up(
     )
     get_jobs_commands = from_plugin_import('compose.utils.jobs', 'get_jobs_commands')
     config_has_changed = from_plugin_import('compose.utils.config', 'config_has_changed')
+    no_daemon_flags = (
+        ['--no-daemon']
+        if compose_config.get('isolation', None) == 'subprocess'
+        else []
+    )
 
     success, msg = check_and_install_plugins(compose_config, debug=debug)
     if not success:
@@ -76,7 +81,7 @@ def _compose_up(
                     '-i', str(pipe.instance_keys),
                     '--params', json.dumps(pipe.parameters),
                     '--noask',
-                ],
+                ] + no_daemon_flags,
                 compose_config,
                 capture_output=False,
                 debug=debug,
@@ -113,8 +118,12 @@ def _compose_up(
         for tagged_pipe in tagged_pipes:
             if tagged_pipe not in pipes:
                 try:
-                    tagged_pipe.parameters.get('tags', [project_name]).remove(project_name)
-                except Exception as e:
+                    tagged_pipe.tags = [
+                        _tag
+                        for _tag in tagged_pipe.tags
+                        if _tag != project_name
+                    ]
+                except Exception:
                     warn(f"{tagged_pipe} was incorrectly tagged with '{project_name}'...")
                     continue
                 info(f"Removing tag '{project_name}' from {tagged_pipe}...")
@@ -238,7 +247,6 @@ def run_initial_syncs(
     """
     from meerschaum.plugins import from_plugin_import
     run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
-
     flags_to_remove = {
         '-c', '-C', '--connector-keys',
         '-m', '-M', '--metric-keys',
@@ -253,6 +261,8 @@ def run_initial_syncs(
         if i not in indices_to_remove
             and (i - 1) not in indices_to_remove
     ]
+    if '--no-daemon' not in flags:
+        flags.append('--no-daemon')
 
     failed_pipes = []
     for pipe in pipes:
