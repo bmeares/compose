@@ -67,6 +67,7 @@ def infer_compose_file_path(file: Optional[pathlib.Path] = None) -> Union[pathli
 def read_compose_config(
     compose_file_path: pathlib.Path,
     env_file: Optional[pathlib.Path] = None,
+    isolated: bool = False,
     debug: bool = False,
 ) -> Union[Dict[str, Any], None]:
     """
@@ -144,7 +145,7 @@ def read_compose_config(
 
     compose_config['isolation'] = (
         'subprocess'
-        if compose_config.get('isolation', None) == 'subprocess'
+        if (isolated or compose_config.get('isolation', None) == 'subprocess')
         else 'config'
     )
 

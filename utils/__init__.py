@@ -89,6 +89,7 @@ def run_mrsm_command(
 def init(
     file: Optional[pathlib.Path] = None,
     env_file: Optional[pathlib.Path] = None,
+    isolated: bool = False,
     debug: bool = False,
     **kw: Any
 ) -> Dict[str, Any]:
@@ -133,6 +134,7 @@ def init(
     compose_config = read_compose_config(
         compose_file_path,
         env_file=env_file,
+        isolated=isolated,
         debug=debug,
     )
     init_root(compose_config)
@@ -141,6 +143,5 @@ def init(
     internal_plugins_compose_path = plugins_resources_path / 'compose'
     current_package_file = pathlib.Path(__file__).parent.parent
     if not internal_plugins_compose_path.exists():
-        internal_plugins_compose_path.parent.mkdir(parents=True, exist_ok=True)
         inject_plugin_path(current_package_file, plugins_resources_path=plugins_resources_path)
     return compose_config

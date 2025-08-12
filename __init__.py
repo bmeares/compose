@@ -47,6 +47,11 @@ add_plugin_argument(
         "Exit before starting the background jobs. This is used by `mrsm compose run`."
     )
 )
+add_plugin_argument(
+    '--isolated', action='store_true', help=(
+        "Execute Meerschaum commands in subprocesses for best isolation."
+    )
+)
 
 
 @make_action(daemon=False)
