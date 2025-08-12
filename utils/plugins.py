@@ -28,12 +28,6 @@ def get_installed_plugins(
     with replace_env(get_env_dict(compose_config)):
         return get_plugins_names()
 
-    #  from plugins.compose.utils import run_mrsm_command
-    #  proc = run_mrsm_command(
-        #  ['show', 'plugins', '--nopretty'], compose_config, debug=debug,
-    #  )
-    #  return [line.decode('utf-8').strip('\n') for line in proc.stdout.readlines()]
-
 
 def install_plugins(
     plugins: List[str],

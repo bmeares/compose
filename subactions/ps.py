@@ -26,7 +26,8 @@ def _compose_ps(
     success, msg = run_mrsm_command(
         ['show', 'jobs'] + (['--nopretty'] if nopretty else []),
         compose_config,
-        capture_output = False,
-        debug = debug,
+        capture_output=False,
+        debug=debug,
+        _replace=False,
     )
     return success, msg

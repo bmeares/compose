@@ -44,5 +44,6 @@ def _compose_default(
         compose_config,
         debug=debug,
         _subprocess=(compose_config.get('isolation', None) == 'subprocess'),
+        _replace=False,
     )
     return success, msg

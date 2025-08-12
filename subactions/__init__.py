@@ -44,7 +44,6 @@ def _do_subaction(
         PLUGINS_DIR_PATHS,
     )
 
-
     get_env_dict = from_plugin_import('compose.utils.config', 'get_env_dict')
     init = from_plugin_import('compose.utils', 'init')
     subaction_function = (

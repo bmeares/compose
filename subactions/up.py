@@ -85,6 +85,7 @@ def _compose_up(
                 compose_config,
                 capture_output=False,
                 debug=debug,
+                _replace=False,
             )
             if not success:
                 warn(f"Failed to register {pipe}.", stack=False)
@@ -191,22 +192,25 @@ def _compose_up(
         run_mrsm_command(
             ['delete', 'job', job_name, '-f'],
             compose_config,
-            capture_output = (not debug),
-            debug = debug,
+            capture_output=(not debug),
+            debug=debug,
+            _replace=False,
         )
         run_mrsm_command(
             job_command,
             compose_config,
-            capture_output = False,
-            debug = debug,
+            capture_output=False,
+            debug=debug,
+            _replace=False,
         )
 
     if force:
         run_mrsm_command(
             ['show', 'logs'] + list(jobs_commands),
             compose_config,
-            capture_output = False,
-            debug = debug,
+            capture_output=False,
+            debug=debug,
+            _replace=False,
         )
 
     explicit_jobs = compose_config.get('jobs', {})
@@ -278,8 +282,9 @@ def run_initial_syncs(
                     '-i', str(pipe.instance_keys),
                 ] + flags,
                 compose_config,
-                capture_output = False,
-                debug = debug,
+                capture_output=False,
+                debug=debug,
+                _replace=False,
             )
             if not pipe.temporary
             else pipe.sync(debug=debug, **kw)
@@ -306,8 +311,9 @@ def run_initial_syncs(
                     '-i', str(pipe.instance_keys),
                 ] + flags,
                 compose_config,
-                capture_output = False,
-                debug = debug,
+                capture_output=False,
+                debug=debug,
+                _replace=False,
             )
             if not pipe.temporary
             else pipe.sync(debug=debug, **kw)[0]

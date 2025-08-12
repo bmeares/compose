@@ -26,6 +26,7 @@ def _compose_debug(
         compose_config,
         capture_output=False,
         debug=debug,
+        _replace=False,
     )
 
     return True, "Success"
