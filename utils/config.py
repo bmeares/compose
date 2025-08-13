@@ -138,10 +138,6 @@ def read_compose_config(
     if compose_cf:
         compose_cf = search_and_substitute_config(compose_cf)
         compose_config['config'] = compose_cf
-    plugins_dir_paths = get_dir_paths(compose_config, 'plugins')
-    for plugins_dir_path in plugins_dir_paths:
-        if not plugins_dir_path.exists():
-            plugins_dir_path.mkdir(parents=True, exist_ok=True)
 
     compose_config['isolation'] = (
         'subprocess'
