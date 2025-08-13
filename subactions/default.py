@@ -38,12 +38,19 @@ def _compose_default(
                 continue
             isolated_sysargs.append(arg)
 
-    info(f"Running '{' '.join(action)}' in compose project '{project_name}'...")
+    ### Just launch a subprocess for the shell.
+    ### It's too much of a hassle otherwise.
+    _subprocess = compose_config.get('isolation', None) == 'subprocess'
+    if action:
+        info(f"Running '{' '.join(action)}' in compose project '{project_name}'...")
+    else:
+        _subprocess = True
+
     success, msg = run_mrsm_command(
         isolated_sysargs,
         compose_config,
         debug=debug,
-        _subprocess=(compose_config.get('isolation', None) == 'subprocess'),
+        _subprocess=_subprocess,
         _replace=False,
     )
     return success, msg

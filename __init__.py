@@ -79,7 +79,7 @@ def compose(
 
 _get_subactions = from_plugin_import('compose.subactions', 'get_subactions')
 def complete_compose(action: Optional[List[str]] = None, **kwargs):
-    subactions = _get_subactions()
+    subactions = sorted([subaction for subaction in _get_subactions() if subaction != 'default'])
     if not action:
         return subactions
 

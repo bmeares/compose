@@ -86,8 +86,9 @@ def run_mrsm_command(
         with replace_config(config):
             with replace_env(env):
                 success, msg = entry(sysargs, _use_cli_daemon=True)
+                return success, msg
 
-    return success, msg
+    return False, f"Failed to execute sysargs:\n{sysargs}"
 
 
 def init(

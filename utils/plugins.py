@@ -72,6 +72,14 @@ def check_and_install_plugins(
         'repository', get_config('meerschaum', 'repository')
     )
 
+    plugins_dir_paths = compose_config.get('plugins_dir', [])
+    for path in plugins_dir_paths:
+        if not path.exists():
+            try:
+                path.mkdir(exist_ok=True, parents=True)
+            except Exception as e:
+                return False, f"Failed to create plugins path '{path}': {e}"
+
     required_plugin_parts = [
         plugin_name.split(STATIC_CONFIG['plugins']['repo_separator'])
         for plugin_name in configured_plugins
@@ -105,6 +113,7 @@ def check_and_install_plugins(
             ),
             compose_config,
             debug=debug,
+            _subprocess=True,
         )
         if not install_success:
             warn(install_msg, stack=False)
