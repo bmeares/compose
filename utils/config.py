@@ -16,7 +16,9 @@ import meerschaum as mrsm
 from meerschaum.utils.typing import Optional, Union, Dict, Any, List
 from meerschaum.utils.warnings import warn, info
 from meerschaum.config._paths import PLUGINS_RESOURCES_PATH
+from meerschaum.plugins import from_plugin_import
 from meerschaum.utils.misc import items_str
+from meerschaum.utils.dtypes import json_serialize_value
 
 COMPOSE_KEYS = [
     'root_dir',
@@ -28,6 +30,7 @@ COMPOSE_KEYS = [
     'project_name',
     'pipes',
     'jobs',
+    'isolation',
 ]
 DEFAULT_COMPOSE_FILE_CANDIDATES = ['mrsm-compose.yaml', 'mrsm-compose.yml']
 CONFIG_METADATA: Dict[str, Any] = {}
@@ -64,6 +67,7 @@ def infer_compose_file_path(file: Optional[pathlib.Path] = None) -> Union[pathli
 def read_compose_config(
     compose_file_path: pathlib.Path,
     env_file: Optional[pathlib.Path] = None,
+    isolated: bool = False,
     debug: bool = False,
 ) -> Union[Dict[str, Any], None]:
     """
@@ -83,8 +87,9 @@ def read_compose_config(
     -------
     The contents of the compose YAML file as a dictionary.
     """
-    from plugins.compose.utils.stack import ensure_project_name
     from meerschaum.config._read_config import search_and_substitute_config
+
+    ensure_project_name = from_plugin_import('compose.utils.stack', 'ensure_project_name')
 
     envyaml = mrsm.attempt_import('envyaml', venv='compose')
     try:
@@ -128,11 +133,17 @@ def read_compose_config(
             strict = True,
         )
 
-    compose_config = search_and_substitute_config({k: env[k] for k in COMPOSE_KEYS if k in env})
-    plugins_dir_paths = get_dir_paths(compose_config, 'plugins')
-    for plugins_dir_path in plugins_dir_paths:
-        if not plugins_dir_path.exists():
-            plugins_dir_path.mkdir(parents=True, exist_ok=True)
+    compose_config = {k: env[k] for k in COMPOSE_KEYS if k in env}
+    compose_cf = compose_config.get('config', {})
+    if compose_cf:
+        compose_cf = search_and_substitute_config(compose_cf)
+        compose_config['config'] = compose_cf
+
+    compose_config['isolation'] = (
+        'subprocess'
+        if (isolated or compose_config.get('isolation', None) == 'subprocess')
+        else 'config'
+    )
 
     ### Add metadata keys (project_name, root_dir, plugin_dir, __file__).
     compose_config['__file__'] = compose_file_path
@@ -263,15 +274,30 @@ def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:
     if term:
         env_dict['TERM'] = term
 
-    env_dict.update({
-        'MRSM_ROOT_DIR': str(compose_config['root_dir'].as_posix()),
-        'MRSM_PLUGINS_DIR': (
-            str(compose_config['plugins_dir'].as_posix())
-            if not isinstance(compose_config['plugins_dir'], list)
-            else json.dumps([path.as_posix() for path in compose_config['plugins_dir']])
-        ),
-        'MRSM_CONFIG': json.dumps(compose_config.get('config', {})),
-    })
+    root_dir_path = compose_config.get('root_dir', None)
+    if root_dir_path is not None:
+        env_dict['MRSM_ROOT_DIR'] = root_dir_path.as_posix()
+
+    plugins_dir_path = compose_config.get('plugins_dir', None)
+    if plugins_dir_path:
+        env_dict['MRSM_PLUGINS_DIR'] = (
+            plugins_dir_path.as_posix()
+            if not isinstance(plugins_dir_path, list)
+            else json.dumps(
+                [path.as_posix() for path in plugins_dir_path],
+                separators=(',', ':'),
+            )
+        )
+
+    env_dict['MRSM__COMPOSE_CONFIG'] = json.dumps(
+        compose_config, separators=(',', ':'),
+        default=json_serialize_value,
+    )
+
+    config = compose_config.get('config', None)
+    if config:
+        env_dict['MRSM_CONFIG'] = json.dumps(config, separators=(',', ':'))
+
     if compose_config.get('environment', None):
         env_dict.update(compose_config['environment'])
 
@@ -306,13 +332,16 @@ def init_root(compose_config: Dict[str, Any], debug: bool = False) -> bool:
         root_dir_path.mkdir(exist_ok=True)
         info(
             "Initializing Meerschaum root directory:\n    "
-            + f"{root_dir_path}\n    "
-            + "This should only take a few seconds..."
+            f"{root_dir_path}\n    "
+            "This should only take a few seconds..."
         )
 
-    success = run_mrsm_command(
-        ['show', 'version'], compose_config, debug=debug,
-    ).wait() == 0
+    success, message = run_mrsm_command(
+        ['show', 'version', '--no-daemon'],
+        compose_config,
+        capture_output=True,
+        debug=debug,
+    )
 
     if fresh:
         if get_installed_plugins(compose_config, debug=debug):
@@ -320,8 +349,8 @@ def init_root(compose_config: Dict[str, Any], debug: bool = False) -> bool:
             run_mrsm_command(
                 ['install', 'required'],
                 compose_config,
-                capture_output = False,
-                debug = debug,
+                capture_output=False,
+                debug=debug,
             )
 
     ### Update the cache after building the in-memory config.
@@ -371,7 +400,6 @@ def write_config_cache(compose_config: Dict[str, Any]) -> None:
     Write the current compose configuration to a cache file.
     """
     config_cache_path = get_config_cache_path(compose_config) 
-    config_cache_parent = config_cache_path.parent
 
     with open(config_cache_path, 'wb') as f:
         pickle.dump(hash_config(compose_config), f)
@@ -396,7 +424,6 @@ def config_has_changed(compose_config: Dict[str, Any]) -> bool:
     """
     if 'config_has_changed' in CONFIG_METADATA:
         return CONFIG_METADATA['config_has_changed']
-    config_cache_path = get_config_cache_path(compose_config)
     config_cache = read_config_cache(compose_config)
     hashed_config = hash_config(compose_config)
     has_changed = (config_cache != hashed_config)

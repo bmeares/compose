@@ -6,38 +6,45 @@
 Entrypoint to the `compose up` command.
 """
 
-import shlex
-import copy
 import json
+
 import meerschaum as mrsm
 from meerschaum.utils.typing import SuccessTuple, Dict, Any, List, Optional
 from meerschaum.utils.warnings import info, warn
-from meerschaum.utils.misc import items_str, flatten_list, print_options
+from meerschaum.utils.misc import print_options
 
-def compose_up(
-    debug: bool = False,
+
+def _compose_up(
+    compose_config: Dict[str, Any],
     dry: bool = False,
     force: bool = False,
     presync: bool = False,
     no_jobs: bool = False,
     sysargs: Optional[List[str]] = None,
+    debug: bool = False,
     **kw
 ) -> SuccessTuple:
     """
     Bring up the configured Meerschaum stack.
     """
-    from plugins.compose.utils import run_mrsm_command, init
-    from plugins.compose.utils.stack import get_project_name
-    from plugins.compose.utils.plugins import check_and_install_plugins
-    from plugins.compose.utils.pipes import (
-        build_custom_connectors, get_defined_pipes,
-        instance_pipes_from_pipes_list,
-    )
-    from plugins.compose.utils.jobs import get_jobs_commands
-    from plugins.compose.utils.config import config_has_changed
-    from collections import defaultdict
+    from meerschaum.plugins import from_plugin_import
 
-    compose_config = init(debug=debug, **kw)
+    run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
+    get_project_name = from_plugin_import('compose.utils.stack', 'get_project_name')
+    check_and_install_plugins = from_plugin_import('compose.utils.plugins', 'check_and_install_plugins')
+    build_custom_connectors, get_defined_pipes, instance_pipes_from_pipes_list = from_plugin_import(
+        'compose.utils.pipes',
+        'build_custom_connectors',
+        'get_defined_pipes',
+        'instance_pipes_from_pipes_list',
+    )
+    get_jobs_commands = from_plugin_import('compose.utils.jobs', 'get_jobs_commands')
+    config_has_changed = from_plugin_import('compose.utils.config', 'config_has_changed')
+    no_daemon_flags = (
+        ['--no-daemon']
+        if compose_config.get('isolation', None) == 'subprocess'
+        else []
+    )
 
     success, msg = check_and_install_plugins(compose_config, debug=debug)
     if not success:
@@ -65,7 +72,7 @@ def compose_up(
             info(f"{pipe} is temporary, will not modify registration.")
         elif not pipe.id:
             info(f"Registering {pipe}...")
-            success = run_mrsm_command(
+            success, msg = run_mrsm_command(
                 [
                     'register', 'pipes',
                     '-c', str(pipe.connector_keys),
@@ -74,11 +81,12 @@ def compose_up(
                     '-i', str(pipe.instance_keys),
                     '--params', json.dumps(pipe.parameters),
                     '--noask',
-                ],
+                ] + no_daemon_flags,
                 compose_config,
-                capture_output=True,
+                capture_output=False,
                 debug=debug,
-            ).wait() == 0
+                _replace=False,
+            )
             if not success:
                 warn(f"Failed to register {pipe}.", stack=False)
             updated_registration = True
@@ -111,8 +119,12 @@ def compose_up(
         for tagged_pipe in tagged_pipes:
             if tagged_pipe not in pipes:
                 try:
-                    tagged_pipe.parameters.get('tags', [project_name]).remove(project_name)
-                except Exception as e:
+                    tagged_pipe.tags = [
+                        _tag
+                        for _tag in tagged_pipe.tags
+                        if _tag != project_name
+                    ]
+                except Exception:
                     warn(f"{tagged_pipe} was incorrectly tagged with '{project_name}'...")
                     continue
                 info(f"Removing tag '{project_name}' from {tagged_pipe}...")
@@ -180,22 +192,25 @@ def compose_up(
         run_mrsm_command(
             ['delete', 'job', job_name, '-f'],
             compose_config,
-            capture_output = (not debug),
-            debug = debug,
+            capture_output=(not debug),
+            debug=debug,
+            _replace=False,
         )
         run_mrsm_command(
             job_command,
             compose_config,
-            capture_output = False,
-            debug = debug,
+            capture_output=False,
+            debug=debug,
+            _replace=False,
         )
 
     if force:
         run_mrsm_command(
             ['show', 'logs'] + list(jobs_commands),
             compose_config,
-            capture_output = False,
-            debug = debug,
+            capture_output=False,
+            debug=debug,
+            _replace=False,
         )
 
     explicit_jobs = compose_config.get('jobs', {})
@@ -225,19 +240,17 @@ def compose_up(
 
 
 def run_initial_syncs(
-        pipes: List[mrsm.Pipe],
-        compose_config: Dict[str, Any],
-        sysargs: Optional[List[str]] = None,
-        debug: bool = False,
-        **kw
-    ) -> SuccessTuple:
+    pipes: List[mrsm.Pipe],
+    compose_config: Dict[str, Any],
+    sysargs: Optional[List[str]] = None,
+    debug: bool = False,
+    **kw
+) -> SuccessTuple:
     """
     Try two passes of syncing before starting the jobs.
     """
-    import json
-    from plugins.compose.utils import run_mrsm_command
-    from meerschaum._internal.arguments._parse_arguments import parse_dict_to_sysargs
-
+    from meerschaum.plugins import from_plugin_import
+    run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
     flags_to_remove = {
         '-c', '-C', '--connector-keys',
         '-m', '-M', '--metric-keys',
@@ -252,11 +265,13 @@ def run_initial_syncs(
         if i not in indices_to_remove
             and (i - 1) not in indices_to_remove
     ]
+    if '--no-daemon' not in flags:
+        flags.append('--no-daemon')
 
     failed_pipes = []
     for pipe in pipes:
         info(f"Syncing {pipe}...")
-        success = (
+        success, msg = (
             run_mrsm_command(
                 [
                     'sync',
@@ -267,15 +282,16 @@ def run_initial_syncs(
                     '-i', str(pipe.instance_keys),
                 ] + flags,
                 compose_config,
-                capture_output = False,
-                debug = debug,
-            ).wait() == 0
+                capture_output=False,
+                debug=debug,
+                _replace=False,
+            )
             if not pipe.temporary
-            else pipe.sync(debug=debug, **kw)[0]
+            else pipe.sync(debug=debug, **kw)
         )
 
         if not success:
-            warn(f"Failed to sync {pipe}.", stack=False)
+            warn(f"Failed to sync {pipe}:\n{msg}", stack=False)
             failed_pipes.append(pipe)
 
     if not failed_pipes:
@@ -284,7 +300,7 @@ def run_initial_syncs(
     ### Pipes may be interdependent, so try again if we encounter any errors.
     for pipe in failed_pipes:
         info(f"Retry syncing {pipe}...")
-        success = (
+        success, msg = (
             run_mrsm_command(
                 [
                     'sync',
@@ -295,14 +311,16 @@ def run_initial_syncs(
                     '-i', str(pipe.instance_keys),
                 ] + flags,
                 compose_config,
-                capture_output = False,
-                debug = debug,
-            ).wait() == 0
+                capture_output=False,
+                debug=debug,
+                _replace=False,
+            )
             if not pipe.temporary
             else pipe.sync(debug=debug, **kw)[0]
         )
 
         if not success:
-            warn(f"Failed to sync {pipe}!", stack=False)
-            return False, f"Unable to begin syncing {pipe}."
+            warn(f"Failed to sync {pipe}:\n{msg}", stack=False)
+            return False, f"Unable to begin syncing {pipe}:\n{msg}"
+
     return True, "Success"

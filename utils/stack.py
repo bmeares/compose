@@ -6,11 +6,9 @@
 Utility functions for the `stack` command.
 """
 
-import os
-import pathlib
 from meerschaum.utils.typing import Dict, Any
 from meerschaum.utils.warnings import warn
-from meerschaum.utils.daemon._names import generate_random_name
+
 
 def get_project_name(compose_config: Dict[str, Any]) -> str:
     """

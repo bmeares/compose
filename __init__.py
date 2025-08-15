@@ -6,15 +6,16 @@
 Manage Meerschaum environments with Compose.
 """
 
-__version__ = '1.6.3'
+import pathlib
+
+from meerschaum.utils.typing import SuccessTuple, Optional, List, Any
+from meerschaum.plugins import add_plugin_argument, make_action, from_plugin_import
+
+from .sync import sync
+
+__version__ = '2.0.0'
 required = ['python-dotenv', 'envyaml']
 
-import json
-import pathlib
-from meerschaum.utils.typing import SuccessTuple, Optional, List, Dict, Union, Any
-from meerschaum.utils.warnings import warn, info
-from meerschaum.plugins import add_plugin_argument
-from meerschaum.connectors import make_connector
 
 add_plugin_argument(
     '--file', '--compose-file', type=pathlib.Path, help=(
@@ -46,70 +47,45 @@ add_plugin_argument(
         "Exit before starting the background jobs. This is used by `mrsm compose run`."
     )
 )
-
-from .sync import sync
-
-from .subactions import (
-    compose_up as _compose_up,
-    compose_down as _compose_down,
-    compose_logs as _compose_logs,
-    compose_ps as _compose_ps,
-    compose_explain as _compose_explain,
-    compose_run as _compose_run,
-    compose_init as _compose_init,
-)
-
-from .utils import (
-    run_mrsm_command,
-    init,
-)
-from .utils.pipes import (
-    get_defined_pipes,
-    build_custom_connectors,
-    instance_pipes_from_pipes_list,
-    build_parent_pipe,
-)
-from .utils.stack import (
-    get_project_name, 
-    ensure_project_name,
-)
-from .utils.config import (
-    infer_compose_file_path, 
-    read_compose_config,
-    get_dir_paths,
-    get_env_dict,
-    init_root,
-    init_env,
-    get_config_cache_path,
-    write_config_cache,
-    read_config_cache,
-    config_has_changed,
-    hash_config,
+add_plugin_argument(
+    '--isolated', action='store_true', help=(
+        "Execute Meerschaum commands in subprocesses for best isolation."
+    )
 )
 
 
+@make_action(daemon=False)
 def compose(
-        action: Optional[List] = None,
-        file: Optional[pathlib.Path] = None,
-        env_file: Optional[pathlib.Path] = None,
-        debug: bool = False,
-        **kwargs: Any
-    ) -> SuccessTuple:
+    action: Optional[List] = None,
+    file: Optional[pathlib.Path] = None,
+    env_file: Optional[pathlib.Path] = None,
+    debug: bool = False,
+    **kwargs: Any
+) -> SuccessTuple:
     """
     Manage an isolated Meerschaum environment with Meerschaum Compose.
     """
-    from .subactions import compose_default
-    return compose_default(
-        action = action,
-        file = file,
-        env_file = env_file,
-        debug = debug,
+    _do_subaction = from_plugin_import('compose.subactions', '_do_subaction')
+    subaction = action[0] if action else 'default'
+    return _do_subaction(
+        subaction,
+        action=(action or []),
+        file=file,
+        env_file=env_file,
+        debug=debug,
         **kwargs
     )
 
 
-#  def complete_compose(**kwargs: Any) -> List[str]:
-    #  """
-    #  Return the subactions for `compose`.
-    #  """
-    #  return ['up', 'down']
+_get_subactions = from_plugin_import('compose.subactions', 'get_subactions')
+def complete_compose(action: Optional[List[str]] = None, **kwargs):
+    subactions = sorted([subaction for subaction in _get_subactions() if subaction != 'default'])
+    if not action:
+        return subactions
+
+    possibilities = []
+    for subaction in subactions:
+        if subaction.startswith(action[0]) and action[0] != subaction:
+            possibilities.append(subaction)
+
+    return possibilities

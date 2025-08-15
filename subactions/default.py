@@ -3,14 +3,16 @@
 # vim:fenc=utf-8
 
 """
-Pass all other subactions to `mrsm stack`.
+Pass all other subactions to `mrsm`.
 """
 
-from meerschaum.utils.typing import SuccessTuple, Any, Optional, List
+from meerschaum.utils.typing import SuccessTuple, Any, Optional, List, Dict
 from meerschaum.utils.warnings import info
 from meerschaum.plugins import from_plugin_import
 
-def compose_default(
+
+def _compose_default(
+    compose_config: Dict[str, Any],
     action: Optional[List[str]] = None,
     sysargs: Optional[List[str]] = None,
     debug: bool = False,
@@ -19,10 +21,9 @@ def compose_default(
     """
     Execute Meerschaum actions in the isolated environment.
     """
-    run_mrsm_command, init = from_plugin_import('compose.utils', 'run_mrsm_command', 'init')
+    run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
     get_project_name = from_plugin_import('compose.utils.stack', 'get_project_name')
 
-    compose_config = init(debug=debug, **kw)
     project_name = get_project_name(compose_config)
 
     isolated_sysargs = []
@@ -37,13 +38,19 @@ def compose_default(
                 continue
             isolated_sysargs.append(arg)
 
-    info(f"Running '{' '.join(action)}' in compose project '{project_name}'...")
-    success = run_mrsm_command(
+    ### Just launch a subprocess for the shell.
+    ### It's too much of a hassle otherwise.
+    _subprocess = compose_config.get('isolation', None) == 'subprocess'
+    if action:
+        info(f"Running '{' '.join(action)}' in compose project '{project_name}'...")
+    else:
+        _subprocess = True
+
+    success, msg = run_mrsm_command(
         isolated_sysargs,
         compose_config,
-        capture_output=False,
         debug=debug,
-    ).wait() == 0
-    msg = "Success" if success else f"Failed to execute '{' '.join(action)}'."
-
+        _subprocess=_subprocess,
+        _replace=False,
+    )
     return success, msg

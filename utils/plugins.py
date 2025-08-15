@@ -7,44 +7,49 @@ Manage plugins in the isolated environment.
 """
 
 from collections import defaultdict
+
+import meerschaum as mrsm
 from meerschaum.utils.typing import Dict, Any, List, SuccessTuple, Optional
-from meerschaum.utils.packages import run_python_package
-from meerschaum.utils.warnings import info, warn
-from meerschaum.utils.misc import items_str
+from meerschaum.utils.warnings import warn
+
 
 def get_installed_plugins(
-        compose_config: Dict[str, Any],
-        debug: bool = False,
-    ) -> List[str]:
+    compose_config: Dict[str, Any],
+    debug: bool = False,
+) -> List[str]:
     """
-    Return a list of plugins in the `root/plugins/` directory.
+    Return a list of plugins in the configured `plugins` directories.
     """
-    from plugins.compose.utils import run_mrsm_command
-    proc = run_mrsm_command(
-        ['show', 'plugins', '--nopretty'], compose_config, debug=debug,
-    )
-    return [line.decode('utf-8').strip('\n') for line in proc.stdout.readlines()]
+    from meerschaum.config.environment import replace_env
+    from meerschaum.plugins import get_plugins_names, from_plugin_import
+
+    get_env_dict = from_plugin_import('compose.utils.config', 'get_env_dict')
+    
+    with replace_env(get_env_dict(compose_config)):
+        return get_plugins_names()
 
 
 def install_plugins(
-        plugins: List[str],
-        compose_config: Dict[str, Any],
-        debug: bool = False,
-    ) -> bool:
+    plugins: List[str],
+    compose_config: Dict[str, Any],
+    debug: bool = False,
+) -> mrsm.SuccessTuple:
     """
     Install plugins to the `root/plugins/` directory.
     """
     from plugins.compose.utils import run_mrsm_command
     return run_mrsm_command(
-        ['install', 'plugins'] + plugins, compose_config, debug=debug,
-    ).wait() == 0
+        ['install', 'plugins'] + plugins,
+        compose_config,
+        debug=debug,
+    )
 
 
 def check_and_install_plugins(
-        compose_config: Dict[str, Any],
-        debug: bool = False,
-        _existing_plugins: Optional[List[str]] = None,
-    ) -> SuccessTuple:
+    compose_config: Dict[str, Any],
+    debug: bool = False,
+    _existing_plugins: Optional[List[str]] = None,
+) -> SuccessTuple:
     """
     Verify that required plugins are available in the root directory
     and attempt to install missing plugins.
@@ -64,8 +69,16 @@ def check_and_install_plugins(
     ).get(
         'meerschaum', {}
     ).get(
-        'default_repository', get_config('meerschaum', 'default_repository')
+        'repository', get_config('meerschaum', 'repository')
     )
+
+    plugins_dir_paths = compose_config.get('plugins_dir', [])
+    for path in plugins_dir_paths:
+        if not path.exists():
+            try:
+                path.mkdir(exist_ok=True, parents=True)
+            except Exception as e:
+                return False, f"Failed to create plugins path '{path}': {e}"
 
     required_plugin_parts = [
         plugin_name.split(STATIC_CONFIG['plugins']['repo_separator'])
@@ -92,23 +105,15 @@ def check_and_install_plugins(
 
     success, msg = True, ""
     for repo_keys, plugin_names in required_plugins.items():
-        install_success = run_mrsm_command(
+        install_success, install_msg = run_mrsm_command(
             (
                 ['install', 'plugins']
                 + plugin_names
                 + (['-r', repo_keys] if repo_keys else [])
             ),
             compose_config,
-            capture_output = False,
-            debug = debug,
-        ).wait() == 0
-        install_msg = (
-            ""
-            if install_success
-            else (
-                f"Failed to install plugins {items_str(plugin_names)} "
-                + f"from repository {repo_keys or default_repository}.\n"
-            )
+            debug=debug,
+            _subprocess=True,
         )
         if not install_success:
             warn(install_msg, stack=False)
