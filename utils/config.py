@@ -361,9 +361,9 @@ def init_root(compose_config: Dict[str, Any], debug: bool = False) -> bool:
 
 
 def init_env(
-        compose_file_path: pathlib.Path,
-        env_file: Optional[pathlib.Path] = None
-    ) -> None:
+    compose_file_path: pathlib.Path,
+    env_file: Optional[pathlib.Path] = None
+) -> None:
     """
     Initialize the local environment from the dotfile.
 
@@ -373,7 +373,7 @@ def init_env(
         The path to the the environment dotfile.
         Infer `.env` if `env_file` is `None`.
     """
-    from dotenv import load_dotenv
+    dotenv = mrsm.attempt_import('dotenv', venv='compose')
     old_cwd = os.getcwd()
     os.chdir(compose_file_path.parent)
     if env_file is None:
@@ -381,7 +381,7 @@ def init_env(
     env_path = compose_file_path.parent / env_file
     try:
         if env_path.exists():
-            load_dotenv(env_file)
+            dotenv.load_dotenv(env_file)
     except Exception as e:
         warn(f"Failed to load '{env_path}':\n{e}")
     os.chdir(old_cwd)
