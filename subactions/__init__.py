@@ -9,7 +9,6 @@ The entrypoint for subactions to the `compose` command.
 import os
 import pathlib
 import copy
-import json
 from functools import partial as _partial
 
 from meerschaum.plugins import from_plugin_import
@@ -38,10 +37,11 @@ def _do_subaction(
     from meerschaum.config import replace_config
     from meerschaum.config._default import default_config
     from meerschaum.config.environment import replace_env
-    from meerschaum.plugins import from_plugin_import, unload_plugins, load_plugins, get_plugins_names
-    from meerschaum.config.paths import (
-        ROOT_DIR_PATH,
-        PLUGINS_DIR_PATHS,
+    from meerschaum.plugins import (
+        from_plugin_import,
+        unload_plugins,
+        load_plugins,
+        get_plugins_names,
     )
 
     get_env_dict = from_plugin_import('compose.utils.config', 'get_env_dict')
