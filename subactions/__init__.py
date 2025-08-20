@@ -43,6 +43,7 @@ def _do_subaction(
         load_plugins,
         get_plugins_names,
     )
+    from meerschaum.utils.warnings import dprint
 
     get_env_dict = from_plugin_import('compose.utils.config', 'get_env_dict')
     init = from_plugin_import('compose.utils', 'init')
@@ -66,17 +67,43 @@ def _do_subaction(
 
     old_plugins_names = get_plugins_names()
     if need_unload:
+        if debug:
+            dprint("Compose: Unloading plugins before replacing config.", icon=False)
         unload_plugins(
             [plugin_name for plugin_name in old_plugins_names if plugin_name != 'compose'],
             debug=debug,
         )
 
+    if debug:
+        dprint("Compose: Replacing config.", icon=False)
+
     with replace_config(config):
         with replace_env(env):
+            new_plugin_names = get_plugins_names()
+            if debug:
+                dprint(f"Compose: Loading plugins: {new_plugin_names}", icon=False)
+
             load_plugins(debug=debug)
+
+            if debug:
+                dprint(
+                    f"Compose: Calling `{subaction_function.__name__.lstrip('_').replace('_', ' ')}`...",
+                    icon=False
+                )
+
             success, msg = subaction_function(compose_config, debug=debug, **kwargs)
 
+            if need_unload:
+                if debug:
+                    dprint("Compose: Unloading project plugins.", icon=False)
+                unload_plugins(
+                    [plugin_name for plugin_name in new_plugin_names if plugin_name != 'compose'],
+                    debug=debug,
+                )
+
     if need_unload:
+        if debug:
+            dprint("Compose: Loading back existing plugins.")
         load_plugins(debug=debug)
     return success, msg
 

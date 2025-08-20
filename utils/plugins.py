@@ -10,7 +10,7 @@ from collections import defaultdict
 
 import meerschaum as mrsm
 from meerschaum.utils.typing import Dict, Any, List, SuccessTuple, Optional
-from meerschaum.utils.warnings import warn
+from meerschaum.utils.warnings import warn, dprint
 
 
 def get_installed_plugins(
@@ -59,6 +59,8 @@ def check_and_install_plugins(
     from plugins.compose.utils import run_mrsm_command
     configured_plugins = compose_config.get('plugins', []) 
     if not configured_plugins:
+        if debug:
+            dprint("Compose: No plugins are configured, nothing to install.", icon=False)
         return True, "Success"
 
     if not isinstance(configured_plugins, list):
@@ -74,8 +76,12 @@ def check_and_install_plugins(
 
     plugins_dir_paths = compose_config.get('plugins_dir', [])
     for path in plugins_dir_paths:
+        if debug:
+            dprint(f"Checking plugin path: {path.as_posix()}")
         if not path.exists():
             try:
+                if debug:
+                    dprint(f"Creating path: {path.as_posix()}")
                 path.mkdir(exist_ok=True, parents=True)
             except Exception as e:
                 return False, f"Failed to create plugins path '{path}': {e}"
@@ -95,12 +101,16 @@ def check_and_install_plugins(
         required_plugins[repo_keys].append(plugin_name)
 
     existing_plugins = _existing_plugins or get_installed_plugins(compose_config)
+    if debug:
+        dprint(f"Compose: Existing plugins: {existing_plugins}")
     plugins_to_install = [
         plugin_parts[0]
         for plugin_parts in required_plugin_parts
         if plugin_parts[0] not in existing_plugins
     ]
     if not plugins_to_install:
+        if debug:
+            dprint("Compose: No plugins need to be installed.")
         return True, "Required plugins are already installed."
 
     success, msg = True, ""
