@@ -8,11 +8,14 @@ Utilities for managing defined pipes.
 
 from typing import List, Dict, Any, Union
 import meerschaum as mrsm
-from meerschaum.utils.warnings import warn
+from meerschaum.utils.warnings import warn, dprint
+
 
 def get_defined_pipes(
     compose_config: Dict[str, Any],
     as_meta: bool = False,
+    cache: bool = True,
+    debug: bool = False,
 ) -> List[Union[mrsm.Pipe, Dict[str, Any]]]:
     """
     Return a list of the Pipes defined in `mrsm-compose.yaml`.
@@ -57,12 +60,26 @@ def get_defined_pipes(
             legacy_mrsm_instance = pipe_meta.get('mrsm_instance', None)
             if not legacy_mrsm_instance:
                 pipe_meta['instance'] = default_instance
+        if 'cache' not in pipe_meta:
+            pipe_meta['cache'] = cache
         pipes_meta.append(pipe_meta)
+
+    if debug:
+        dprint("Compose: Pipes metadata:")
+        mrsm.pprint(pipes_meta)
 
     if as_meta:
         return pipes_meta
 
-    return [mrsm.Pipe(**pipe_meta) for pipe_meta in pipes_meta]
+    if debug:
+        dprint("Building pipes from metadata...")
+
+    pipes = [mrsm.Pipe(**pipe_meta) for pipe_meta in pipes_meta]
+    
+    if debug:
+        dprint("Returning pipes...")
+
+    return pipes
 
 
 def build_custom_connectors(compose_config: Dict[str, Any]) -> Dict[str, Any]:

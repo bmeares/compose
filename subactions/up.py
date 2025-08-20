@@ -10,7 +10,7 @@ import json
 
 import meerschaum as mrsm
 from meerschaum.utils.typing import SuccessTuple, Dict, Any, List, Optional
-from meerschaum.utils.warnings import info, warn
+from meerschaum.utils.warnings import info, warn, dprint
 from meerschaum.utils.misc import print_options
 
 
@@ -28,6 +28,7 @@ def _compose_up(
     Bring up the configured Meerschaum stack.
     """
     from meerschaum.plugins import from_plugin_import
+    from meerschaum.utils.pipes import is_pipe_registered
 
     run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
     get_project_name = from_plugin_import('compose.utils.stack', 'get_project_name')
@@ -52,25 +53,59 @@ def _compose_up(
 
     ### Initialize the custom connectors and build the in-memory pipes.
     custom_connectors = build_custom_connectors(compose_config)
-    pipes = get_defined_pipes(compose_config)
+    if debug:
+        dprint("Compose: Built custom connectors:")
+        mrsm.pprint(custom_connectors)
+
+    pipes = get_defined_pipes(compose_config, debug=debug)
     instance_pipes = instance_pipes_from_pipes_list(pipes)
     project_name = get_project_name(compose_config)
+
+    remote_instance_pipes = {
+        instance_keys: mrsm.get_pipes(
+            tags=[project_name],
+            instance=custom_connectors.get(instance_keys, instance_keys),
+            debug=debug,
+        )
+        for instance_keys in instance_pipes
+    }
+
 
     ### Update the parameters in case the remote has changed.
     updated_pipes = []
     updated_registration = False
     for pipe in pipes:
+        if debug:
+            dprint(f"Compose: Checking parameters for {pipe}...")
         updated_registration = False
-        clean_pipe = mrsm.Pipe(**pipe.meta)
-        remote_parameters = clean_pipe.parameters
+
+        pipe_is_registered = is_pipe_registered(pipe, remote_instance_pipes.get(pipe.instance_keys, None))
+
+        remote_pipe = (
+            remote_instance_pipes[pipe.instance_keys][pipe.connector_keys][pipe.metric_key][pipe.location_key]
+            if pipe_is_registered
+            else mrsm.Pipe(**pipe.meta, **{'cache': False})
+        )
+
+        ### Some instance connectors pre-cache the parameters.
+        remote_parameters = remote_pipe._attributes.get('parameters', None) or (
+            remote_pipe.get_parameters(
+                refresh=False,
+                apply_symlinks=False,
+                debug=debug,
+            )
+        )
+        if debug:
+            dprint(f"Remote parameters for {pipe}...")
+            mrsm.pprint(remote_parameters)
         local_parameters = pipe._attributes['parameters']
 
-        local_parameters_str = json.dumps(local_parameters, sort_keys=True)
-        remote_parameters_str = json.dumps(remote_parameters, sort_keys=True)
+        local_parameters_str = json.dumps(local_parameters, sort_keys=True, separators=(',', ':'))
+        remote_parameters_str = json.dumps(remote_parameters, sort_keys=True, separators=(',', ':'))
 
         if pipe.temporary:
             info(f"{pipe} is temporary, will not modify registration.")
-        elif not pipe.id:
+        elif not pipe_is_registered:
             info(f"Registering {pipe}...")
             success, msg = run_mrsm_command(
                 [
@@ -79,13 +114,14 @@ def _compose_up(
                     '-m', str(pipe.metric_key),
                     '-l', str(pipe.location_key),
                     '-i', str(pipe.instance_keys),
-                    '--params', json.dumps(pipe.parameters),
+                    '--params', json.dumps(pipe.parameters, separators=(',', ':')),
                     '--noask',
                 ] + no_daemon_flags,
                 compose_config,
                 capture_output=False,
                 debug=debug,
                 _replace=False,
+                _subprocess=False,
             )
             if not success:
                 warn(f"Failed to register {pipe}.", stack=False)
@@ -93,6 +129,12 @@ def _compose_up(
 
         ### Check the remote parameters against the specified parameters in the YAML.
         elif local_parameters_str != remote_parameters_str:
+            if debug:
+                dprint("Local parameters:")
+                mrsm.pprint(local_parameters)
+                dprint("Remote parameters:")
+                mrsm.pprint(remote_parameters)
+                
             ### Editing with `--params` in a subprocess only patches,
             ### so instead replace the parameters dictionary directly.
             info(f"Updating parameters for {pipe}...")
@@ -105,7 +147,8 @@ def _compose_up(
             updated_pipes.append(pipe)
 
     ### Untag pipes that are tagged but no longer defined in mrsm-config.yaml.
-    from meerschaum.connectors import connectors
+    if debug:
+        dprint("Compose: Checking for stale pipes tagged as '{project_name}'...")
     tagged_instance_pipes = {
         instance_keys: mrsm.get_pipes(
             tags=[project_name],
