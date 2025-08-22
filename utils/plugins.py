@@ -56,7 +56,9 @@ def check_and_install_plugins(
     """
     from meerschaum.config import get_config
     from meerschaum.config.static import STATIC_CONFIG
-    from plugins.compose.utils import run_mrsm_command
+    from meerschaum.plugins import from_plugin_import
+
+    run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
     configured_plugins = compose_config.get('plugins', []) 
     if not configured_plugins:
         if debug:
