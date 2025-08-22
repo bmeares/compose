@@ -6,6 +6,7 @@
 Print out the defined pipes and configuration from the compose file.
 """
 
+import json
 import meerschaum as mrsm
 from meerschaum.utils.typing import SuccessTuple, Any, Optional, List, Dict
 from meerschaum.plugins import from_plugin_import
@@ -35,14 +36,15 @@ def _compose_explain(
     get_project_name = from_plugin_import('compose.utils.stack', 'get_project_name')
 
     project_name = get_project_name(compose_config)
-    _ = build_custom_connectors(compose_config)
+    custom_connectors = build_custom_connectors(compose_config)
     pipes = get_defined_pipes(compose_config)
     instance_pipes = instance_pipes_from_pipes_list(pipes)
 
-    from meerschaum.utils.warnings import info
+    from meerschaum.utils.warnings import info, dprint
     from meerschaum.utils.formatting import get_console
     from meerschaum.utils.formatting._pipes import pipe_repr
     from meerschaum.utils.packages import import_rich, attempt_import
+    from meerschaum.utils.pipes import is_pipe_registered
     from meerschaum.config import get_config
     console = get_console()
     _ = import_rich()
@@ -55,6 +57,15 @@ def _compose_explain(
     )
     from rich import box
     pipe_styles = get_config('formatting', 'pipes', '__repr__', 'ansi', 'styles')
+
+    remote_instance_pipes = {
+        instance_keys: mrsm.get_pipes(
+            tags=[project_name],
+            instance=custom_connectors.get(instance_keys, instance_keys),
+            debug=debug,
+        )
+        for instance_keys in instance_pipes
+    }
 
     rows = []
     for instance, pipes in instance_pipes.items():
@@ -71,16 +82,35 @@ def _compose_explain(
         })
 
         for i, pipe in enumerate(pipes):
-            info(f"Fetching parameters for {pipe}...")
-            clean_pipe = mrsm.Pipe(**pipe.meta)
-            remote_parameters = clean_pipe.get_parameters(apply_symlinks=False, debug=debug)
+            pipe_is_registered = is_pipe_registered(pipe, remote_instance_pipes.get(pipe.instance_keys, None))
+            remote_pipe = (
+                remote_instance_pipes[pipe.instance_keys][pipe.connector_keys][pipe.metric_key][pipe.location_key]
+                if pipe_is_registered
+                else mrsm.Pipe(**pipe.meta, **{'cache': False})
+            )
+
+            ### Some instance connectors pre-cache the parameters.
+            remote_parameters = remote_pipe._attributes.get('parameters', None) or (
+                remote_pipe.get_parameters(
+                    refresh=False,
+                    apply_symlinks=False,
+                    debug=debug,
+                )
+            )
+            if debug:
+                dprint(f"Remote parameters for {pipe}...")
+                mrsm.pprint(remote_parameters)
+
             local_parameters = pipe._attributes['parameters']
+            local_parameters_str = json.dumps(local_parameters, sort_keys=True, separators=(',', ':'))
+            remote_parameters_str = json.dumps(remote_parameters, sort_keys=True, separators=(',', ':'))
+
             include_remote_parameters = False
             if pipe.temporary:
                 registration_status = "🔳 Temporary"
-            elif not pipe.id:
+            elif not pipe_is_registered:
                 registration_status = "⭕ Not registered"
-            elif remote_parameters != local_parameters:
+            elif remote_parameters_str != local_parameters_str:
                 include_remote_parameters = True
                 registration_status = (
                     "❌ Outdated"
@@ -90,11 +120,9 @@ def _compose_explain(
             else:
                 registration_status = "✅ Up-to-date"
 
-            exists_status = "🟢 Exists" if pipe.exists(debug=debug) else "🔴 Does not exist"
-
             end_section = (i == (len(pipes) - 1))
 
-            status_text = rich_text.Text(f"\n\n{registration_status}\n{exists_status}\n")
+            status_text = rich_text.Text(f"\n\n{registration_status}\n")
             pipe_text = pipe_repr(pipe, as_rich_text=True)
             pipe_text.append(status_text)
             local_text = rich_json.JSON.from_data(local_parameters, default=str)
