@@ -71,8 +71,9 @@ def _compose_explain(
         })
 
         for i, pipe in enumerate(pipes):
+            info(f"Fetching parameters for {pipe}...")
             clean_pipe = mrsm.Pipe(**pipe.meta)
-            remote_parameters = clean_pipe.parameters
+            remote_parameters = clean_pipe.get_parameters(apply_symlinks=False, debug=debug)
             local_parameters = pipe._attributes['parameters']
             include_remote_parameters = False
             if pipe.temporary:

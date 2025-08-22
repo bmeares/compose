@@ -103,10 +103,12 @@ def build_custom_connectors(compose_config: Dict[str, Any]) -> Dict[str, Any]:
 
     custom_connectors = {}
     for typ, labels in custom_connectors_config.items():
+        _load_plugins = typ not in types
         for label, connector_kwargs in labels.items():
             conn_keys = typ + ':' + label
             custom_connectors[conn_keys] = mrsm.get_connector(
                 conn_keys,
+                _load_plugins=_load_plugins,
                 **connector_kwargs
             )
 
