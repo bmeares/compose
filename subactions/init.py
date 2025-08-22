@@ -70,8 +70,9 @@ def _compose_init(
             run_mrsm_command(
                 ['install', 'required'] + existing_plugins,
                 compose_config,
-                capture_output = False,
-                debug = debug,
+                capture_output=False,
+                debug=debug,
+                _subprocess=True,
             )
         )
         if not install_required_success:
@@ -85,8 +86,9 @@ def _compose_init(
             run_mrsm_command(
                 ['setup', 'plugins'],
                 compose_config,
-                capture_output = False,
-                debug = debug,
+                capture_output=False,
+                debug=debug,
+                _subprocess=True,
             )
         )
         if not setup_success:
