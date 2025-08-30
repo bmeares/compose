@@ -31,6 +31,7 @@ COMPOSE_KEYS = [
     'pipes',
     'jobs',
     'isolation',
+    'daemon',
 ]
 DEFAULT_COMPOSE_FILE_CANDIDATES = ['mrsm-compose.yaml', 'mrsm-compose.yml']
 CONFIG_METADATA: Dict[str, Any] = {}
@@ -144,6 +145,8 @@ def read_compose_config(
         if (isolated or compose_config.get('isolation', None) == 'subprocess')
         else 'config'
     )
+
+    compose_config['daemon'] = compose_config.get('daemon', True)
 
     ### Add metadata keys (project_name, root_dir, plugin_dir, __file__).
     compose_config['__file__'] = compose_file_path

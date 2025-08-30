@@ -6,7 +6,6 @@
 Utility functions.
 """
 
-import subprocess
 import copy
 import pathlib
 import shlex
@@ -52,6 +51,11 @@ def run_mrsm_command(
                 '-t' not in args
                 and not ' '.join(args).startswith('stack ')
             )
+            else []
+        )
+        + (
+            ['--no-daemon']
+            if compose_config.get('daemon', None) is False
             else []
         )
     )

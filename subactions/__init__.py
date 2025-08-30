@@ -71,16 +71,19 @@ def _do_subaction(
     need_unload = 'MRSM__COMPOSE_CONFIG' not in os.environ
 
     old_plugins_names = get_plugins_names()
+    old_plugins_to_unload = [
+        plugin_name
+        for plugin_name in old_plugins_names
+        if plugin_name != 'compose'
+    ]
     if need_unload:
         if debug:
             dprint("Compose: Unloading plugins before replacing config.", icon=False)
 
         compose_mod = sys.modules.get('plugins.compose', None)
-        unload_plugins(
-            [plugin_name for plugin_name in old_plugins_names if plugin_name != 'compose'],
-            debug=debug,
-        )
-        _ = sys.modules.pop('plugins', None)
+        if old_plugins_to_unload:
+            unload_plugins(old_plugins_to_unload, debug=debug)
+            _ = sys.modules.pop('plugins', None)
 
     if debug:
         dprint("Compose: Replacing config.", icon=False)
@@ -88,6 +91,11 @@ def _do_subaction(
     with replace_config(config):
         with replace_env(env):
             new_plugin_names = get_plugins_names() if subaction != 'init' else []
+            new_plugins_to_unload = [
+                plugin_name
+                for plugin_name in new_plugin_names
+                if plugin_name != 'compose'
+            ]
             if subaction != 'init':
                 if debug:
                     dprint(f"Compose: Loading plugins: {new_plugin_names}", icon=False)
@@ -109,15 +117,13 @@ def _do_subaction(
             if need_unload and subaction != 'init':
                 if debug:
                     dprint("Compose: Unloading project plugins.", icon=False)
-                unload_plugins(
-                    [plugin_name for plugin_name in new_plugin_names if plugin_name != 'compose'],
-                    debug=debug,
-                )
+                unload_plugins(new_plugins_to_unload, debug=debug)
 
     if need_unload:
         if debug:
             dprint("Compose: Loading back existing plugins.")
-        load_plugins(debug=debug)
+        if old_plugins_to_unload:
+            load_plugins(debug=debug)
     return success, msg
 
 
