@@ -152,16 +152,39 @@ def read_compose_config(
     compose_config['__file__'] = compose_file_path
     ensure_dir_keys(compose_config)
     ensure_project_name(compose_config)
+
+    compose_config = replace_config_paths(compose_config, compose_config['root_dir'], '{MRSM_ROOT_DIR}')
+    compose_config = replace_config_paths(compose_config, compose_file_path, '{__file__}')
+
     return compose_config
 
 
-def ensure_dir_keys(compose_config) -> None:
+def ensure_dir_keys(compose_config: Dict[str, Any]) -> None:
     """
     Add the keys `root_dir` and `plugins_dir`.
     """
     compose_config['root_dir'] = get_dir_paths(compose_config, 'root')[0]
     compose_config['plugins_dir'] = get_dir_paths(compose_config, 'plugins')
-    plugins_dir_paths = get_dir_paths(compose_config, 'plugins')
+
+
+def replace_config_paths(
+    config: Dict[str, Any],
+    path: pathlib.Path,
+    pattern: str,
+) -> Dict[str, Any]:
+    """
+    Recursively replace the given pattern string with the path string.
+    """
+    if isinstance(config, dict):
+        for key, value in config.items():
+            config[key] = replace_config_paths(value, path, pattern)
+    elif isinstance(config, list):
+        for i, item in enumerate(config):
+            config[i] = replace_config_paths(item, path, pattern)
+    elif isinstance(config, str):
+        return config.replace(pattern, path.as_posix())
+
+    return config
 
 
 def get_dir_paths(compose_config: Dict[str, Any], dir_name: str) -> List[pathlib.Path]:
