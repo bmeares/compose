@@ -13,7 +13,7 @@ from meerschaum.plugins import add_plugin_argument, make_action, from_plugin_imp
 
 from .sync import sync
 
-__version__ = '2.0.11'
+__version__ = '2.0.13'
 required = ['python-dotenv', 'envyaml']
 
 

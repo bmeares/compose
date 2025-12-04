@@ -148,7 +148,7 @@ def _compose_up(
 
     ### Untag pipes that are tagged but no longer defined in mrsm-config.yaml.
     if debug:
-        dprint("Compose: Checking for stale pipes tagged as '{project_name}'...")
+        dprint(f"Compose: Checking for stale pipes tagged as '{project_name}'...")
     tagged_instance_pipes = {
         instance_keys: mrsm.get_pipes(
             tags=[project_name],

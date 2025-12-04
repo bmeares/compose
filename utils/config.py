@@ -15,7 +15,6 @@ import platform
 import meerschaum as mrsm
 from meerschaum.utils.typing import Optional, Union, Dict, Any, List
 from meerschaum.utils.warnings import warn, info
-from meerschaum.config._paths import PLUGINS_RESOURCES_PATH
 from meerschaum.plugins import from_plugin_import
 from meerschaum.utils.misc import items_str
 from meerschaum.utils.dtypes import json_serialize_value
@@ -205,6 +204,7 @@ def get_dir_paths(compose_config: Dict[str, Any], dir_name: str) -> List[pathlib
     -------
     The absolute path to the configured directory.
     """
+    from meerschaum.config._paths import PLUGINS_RESOURCES_PATH, ROOT_DIR_PATH
     compose_file_path = compose_config.get('__file__', None)
     old_cwd = os.getcwd()
     if compose_file_path is not None:
@@ -236,12 +236,16 @@ def get_dir_paths(compose_config: Dict[str, Any], dir_name: str) -> List[pathlib
 
     configured_dir_paths = []
     for configured_dir_val in configured_dir_vals:
-        if configured_dir_val in ('', None) and dir_name == 'plugins':
-            info(
-                "A null value for `plugins_dir` will include your regular Meerschaum plugins.\n"
-                + "    This will be less isolated than project-specific plugins directories."
-            )
-            path = PLUGINS_RESOURCES_PATH
+        if configured_dir_val in ('', None):
+            if dir_name == 'plugins':
+                info(
+                    "A null value for `plugins_dir` will include your regular Meerschaum plugins.\n"
+                    + "    This will be less isolated than project-specific plugins directories."
+                )
+                path = PLUGINS_RESOURCES_PATH
+            elif dir_name == 'root':
+                info("A null value for `root_dir` will use the host Meerschaum root directory.")
+                path = ROOT_DIR_PATH
         else:
             path = pathlib.Path(configured_dir_val).resolve()
         if path not in configured_dir_paths:
