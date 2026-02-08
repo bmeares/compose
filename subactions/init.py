@@ -84,7 +84,7 @@ def _compose_init(
 
         setup_success, setup_msg = (
             run_mrsm_command(
-                ['setup', 'plugins'],
+                ['setup', 'plugins'] + existing_plugins,
                 compose_config,
                 capture_output=False,
                 debug=debug,

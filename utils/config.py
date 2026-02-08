@@ -25,6 +25,8 @@ COMPOSE_KEYS = [
     'plugins',
     'sync',
     'config',
+    'connectors',
+    'instance',
     'environment',
     'project_name',
     'pipes',
@@ -88,6 +90,7 @@ def read_compose_config(
     The contents of the compose YAML file as a dictionary.
     """
     from meerschaum.config._read_config import search_and_substitute_config
+    from meerschaum.config import apply_patch_to_config
 
     ensure_project_name = from_plugin_import('compose.utils.stack', 'ensure_project_name')
 
@@ -138,6 +141,69 @@ def read_compose_config(
     if compose_cf:
         compose_cf = search_and_substitute_config(compose_cf)
         compose_config['config'] = compose_cf
+    else:
+        compose_config['config'] = {'meerschaum': {'connectors': {}}}
+
+    ### Consolidate connectors config and handle simple connector symlink syntax.
+    root_connectors_config = compose_config.get('connectors', {}) or {}
+    nested_connectors_config = compose_config.get(
+        'config', {}
+    ).get(
+        'meerschaum', {}
+    ).get(
+        'connectors', {}
+    ) or {}
+    connectors_config = apply_patch_to_config(
+        nested_connectors_config,
+        root_connectors_config,
+    )
+    patch_connectors_config = {}
+    for typ, labels_conns_cfs in connectors_config.items():
+        if typ not in patch_connectors_config:
+            patch_connectors_config[typ] = {}
+
+        for label, conn_cf in labels_conns_cfs.items():
+            if conn_cf is None:
+                patch_connectors_config[typ][label] = {}
+                continue
+
+            if not isinstance(conn_cf, str):
+                continue
+
+            ### Ensure correct simple connector syntax.
+            if not (
+                conn_cf.startswith('{')
+                and conn_cf.endswith('}')
+                and conn_cf.count(':') == 1
+                and len(conn_cf) >= 3
+            ):
+                warn(f"Invalid config for connector '{typ}:{label}': {conn_cf}", stack=False)
+                patch_connectors_config[typ][label] = {}
+                continue
+
+            host_typ, host_label = conn_cf.split(':', maxsplit=1)
+            host_typ = host_typ.lstrip('{')
+            host_label = host_label.rstrip('}')
+            host_conn_cf = mrsm.get_config('meerschaum', 'connectors', host_typ, host_label)
+            patch_connectors_config[typ][label] = host_conn_cf
+
+    connectors_config = apply_patch_to_config(connectors_config, patch_connectors_config)
+    if connectors_config:
+        if 'config' not in compose_config:
+            compose_config['config'] = {}
+        if 'meerschaum' not in compose_config['config']:
+            compose_config['config']['meerschaum'] = {}
+        compose_config['config']['meerschaum']['connectors'] = connectors_config
+        compose_config['connectors'] = connectors_config
+
+    root_instance_keys = compose_config.get('instance', None)
+    nested_instance_keys = compose_config.get('config', {}).get('instance', None)
+    if root_instance_keys is not None:
+        if 'config' not in compose_config:
+            compose_config['config'] = {}
+        compose_config['config']['instance'] = root_instance_keys
+    elif nested_instance_keys is not None:
+        compose_config['instance'] = nested_instance_keys
 
     compose_config['isolation'] = (
         'subprocess'
@@ -152,9 +218,12 @@ def read_compose_config(
     ensure_dir_keys(compose_config)
     ensure_project_name(compose_config)
 
-    compose_config = replace_config_paths(compose_config, compose_config['root_dir'], '{MRSM_ROOT_DIR}')
+    compose_config = replace_config_paths(
+        compose_config,
+        compose_config['root_dir'],
+        '{MRSM_ROOT_DIR}'
+    )
     compose_config = replace_config_paths(compose_config, compose_file_path, '{__file__}')
-
     return compose_config
 
 

@@ -21,7 +21,17 @@ def _compose_default(
     """
     Execute Meerschaum actions in the isolated environment.
     """
-    run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
+    try:
+        run_mrsm_command = from_plugin_import('compose.utils', 'run_mrsm_command')
+    except ImportError:
+        return (
+            False,
+            (
+                f"Failed to execute `{' '.join(action or [])}`."
+                + "\nRun `mrsm compose init` before proceeding."
+            )
+        )
+
     get_project_name = from_plugin_import('compose.utils.stack', 'get_project_name')
 
     project_name = get_project_name(compose_config)

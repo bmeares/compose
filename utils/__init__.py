@@ -6,6 +6,7 @@
 Utility functions.
 """
 
+import os
 import copy
 import pathlib
 import shlex

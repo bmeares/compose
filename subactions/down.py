@@ -8,7 +8,7 @@ Entrypoint to the `compose down` command.
 
 from meerschaum.utils.warnings import info
 from meerschaum.utils.typing import SuccessTuple, Any, Dict
-from meerschaum.utils.misc import print_options
+from meerschaum.utils.misc import print_options, items_str
 from meerschaum.utils.prompt import yes_no
 from meerschaum.plugins import from_plugin_import
 

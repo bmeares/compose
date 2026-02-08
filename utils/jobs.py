@@ -34,6 +34,8 @@ def get_jobs_commands(compose_config: Dict[str, Any]) -> Dict[str, List[str]]:
                 command_list.extend(['--name', job_name])
             if '-d' not in command_list and '--daemon' not in command_list:
                 command_list.append('-d')
+            if '-f' not in command_list and '--force' not in command_list:
+                command_list.append('-f')
 
             jobs[job_name] = command_list
 
