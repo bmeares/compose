@@ -8,7 +8,9 @@ Entrypoint to `mrsm compose init`.
 
 import os
 import pathlib
-from meerschaum.utils.typing import SuccessTuple, Any, Optional
+
+import meerschaum as mrsm
+from meerschaum.utils.typing import SuccessTuple, Any, Optional, List, Union
 from meerschaum.utils.warnings import info
 
 
@@ -18,6 +20,11 @@ def _compose_init(
     file: Optional[pathlib.Path] = None,
     yes: bool = False,
     force: bool = False,
+    connector_keys: Optional[List[str]] = None,
+    metric_keys: Optional[List[str]] = None,
+    location_keys: Optional[List[Union[str, None]]] = None,
+    tags: Optional[List[str]] = None,
+    mrsm_instance: Optional[str] = None,
     **kw: Any
 ) -> SuccessTuple:
     """
@@ -32,6 +39,7 @@ def _compose_init(
     )
     from plugins.compose.utils.stack import get_project_name
     from meerschaum.utils.prompt import yes_no
+    from meerschaum.utils.formatting import pprint_pipes
 
     compose_path = infer_compose_file_path(file)
     if compose_path is None:
@@ -51,7 +59,41 @@ def _compose_init(
         if not create_new_compose_file:
             return False, "No files were created."
 
-        if not _write_new_compose_file(compose_path):
+        add_pipes = yes_no(
+            "Add pipes from the given filters to the compose file?",
+            yes=yes,
+            force=force,
+        ) if (
+            connector_keys or metric_keys or location_keys or tags or mrsm_instance
+        ) else (info("Run `compose init` with filters (-c, -m, -l, -t, -i) to add pipes."))
+        if add_pipes:
+            pipes = mrsm.get_pipes(
+                connector_keys=connector_keys,
+                metric_keys=metric_keys,
+                location_keys=location_keys,
+                tags=tags,
+                mrsm_instance=mrsm_instance,
+                **kw
+            )
+            pprint_pipes(pipes)
+            add_pipes = yes_no(
+                "Add these pipes to the compose file?",
+                yes=yes,
+                force=force,
+            )
+            if not add_pipes:
+                info("No pipes will be added.")
+
+        if not _write_new_compose_file(
+            compose_path,
+            add_pipes=add_pipes,
+            connector_keys=connector_keys,
+            metric_keys=metric_keys,
+            location_keys=location_keys,
+            tags=tags,
+            mrsm_instance=mrsm_instance,
+            **kw
+        ):
             return False, f"Failed to create file '{compose_path}'."
 
     compose_config = _init(file=file, debug=debug, **kw)
@@ -97,7 +139,11 @@ def _compose_init(
     return True, f"Finished initializing project '{project_name}'."
 
 
-def _write_new_compose_file(compose_path: pathlib.Path) -> bool:
+def _write_new_compose_file(
+    compose_path: pathlib.Path,
+    add_pipes: bool = False,
+    **kwargs: Any
+) -> bool:
     """
     Write these the following text to a new project's compose file.
     """
@@ -106,13 +152,24 @@ def _write_new_compose_file(compose_path: pathlib.Path) -> bool:
     if compose_path.exists():
         raise FileExistsError(f"File '{compose_path}' already exists.")
 
+    pipes = [
+        {
+            'connector': pipe.connector_keys,
+            'metric': pipe.metric_key,
+            'location': pipe.location_key,
+            'instance': pipe.instance_keys,
+            'parameters': pipe.parameters,
+        }
+        for pipe in mrsm.get_pipes(as_list=True, **kwargs)
+    ] if add_pipes else []
+
     return general_write_yaml_config({
         compose_path: (
             {
                 'project_name': compose_path.parent.name,
                 'root_dir': './root',
                 'plugins_dir': ['./plugins'],
-                'pipes': [],
+                'pipes': pipes,
                 'plugins': [],
                 'config': {
                     'meerschaum': {
