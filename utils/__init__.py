@@ -34,7 +34,7 @@ def run_mrsm_command(
     from meerschaum.config.environment import replace_env
     from meerschaum.utils.packages import run_python_package
     from meerschaum.config import replace_config
-    from meerschaum.config.paths import replace_root_dir, ROOT_DIR_PATH
+    import meerschaum.config.paths as paths
     from meerschaum._internal.entry import entry
 
     project_name = get_project_name(compose_config)
@@ -69,7 +69,7 @@ def run_mrsm_command(
 
     config = copy.deepcopy(compose_config.get('config', {})) if _replace else None
     env = get_env_dict(compose_config) if _replace else None
-    root_dir_path = compose_config.get('root_dir', ROOT_DIR_PATH) if _replace else None
+    root_dir_path = compose_config.get('root_dir', paths.ROOT_DIR_PATH) if _replace else None
 
     if capture_output or _subprocess:
         success = run_python_package(
@@ -87,7 +87,7 @@ def run_mrsm_command(
             return success, "Success"
         return False, f"Failed to execute sysargs:\n{sysargs}"
 
-    with replace_root_dir(root_dir_path):
+    with paths.replace_root_dir(root_dir_path):
         with replace_config(config):
             with replace_env(env):
                 success, msg = entry(sysargs, _use_cli_daemon=True)
@@ -135,7 +135,7 @@ def init(
     )
     compose_file_path = infer_compose_file_path(file)
     if compose_file_path is None:
-        raise Exception(
+        raise FileNotFoundError(
             "No compose file could be found.\n    "
             + "Create a file mrsm-compose.yaml or specify a path with `--file`."
         )

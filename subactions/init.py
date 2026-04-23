@@ -7,6 +7,7 @@ Entrypoint to `mrsm compose init`.
 """
 
 import os
+import copy
 import pathlib
 
 import meerschaum as mrsm
@@ -32,14 +33,18 @@ def _compose_init(
     This is useful for building Docker images.
     """
     from plugins.compose.utils import run_mrsm_command, init as _init
-    from plugins.compose.utils.config import infer_compose_file_path
+    from plugins.compose.utils.config import infer_compose_file_path, get_env_dict
     from plugins.compose.utils.plugins import (
         check_and_install_plugins,
         get_installed_plugins,
     )
     from plugins.compose.utils.stack import get_project_name
+    import meerschaum.config.paths as paths
     from meerschaum.utils.prompt import yes_no
     from meerschaum.utils.formatting import pprint_pipes
+    from meerschaum.config._default import default_config
+    from meerschaum.config import replace_config
+    from meerschaum.config.environment import replace_env
 
     compose_path = infer_compose_file_path(file)
     if compose_path is None:
@@ -97,44 +102,50 @@ def _compose_init(
             return False, f"Failed to create file '{compose_path}'."
 
     compose_config = _init(file=file, debug=debug, **kw)
+    env = get_env_dict(compose_config)
+    config = copy.deepcopy(compose_config.get('config', default_config))
     project_name = get_project_name(compose_config)
     existing_plugins = get_installed_plugins(compose_config, debug=debug)
-    plugins_success, plugins_msg = check_and_install_plugins(
-        compose_config,
-        debug = debug,
-        _existing_plugins = existing_plugins,
-    )
+    with replace_config(config):
+        with replace_env(env):
+            plugins_success, plugins_msg = check_and_install_plugins(
+                compose_config,
+                debug = debug,
+                _existing_plugins = existing_plugins,
+            )
     if not plugins_success:
         return plugins_success, plugins_msg
 
     if existing_plugins:
-        install_required_success, install_required_msg = (
-            run_mrsm_command(
-                ['install', 'required'] + existing_plugins,
-                compose_config,
-                capture_output=False,
-                debug=debug,
-                _subprocess=True,
-            )
-        )
-        if not install_required_success:
-            return (
-                False,
-                f"Failed to install required packages for project '{project_name}':\n"
-                f"{install_required_msg}"
-            )
+        with replace_config(config):
+            with replace_env(env):
+                install_required_success, install_required_msg = (
+                    run_mrsm_command(
+                        ['install', 'required'] + existing_plugins,
+                        compose_config,
+                        capture_output=False,
+                        debug=debug,
+                        _subprocess=True,
+                    )
+                )
+                if not install_required_success:
+                    return (
+                        False,
+                        f"Failed to install required packages for project '{project_name}':\n"
+                        f"{install_required_msg}"
+                    )
 
-        setup_success, setup_msg = (
-            run_mrsm_command(
-                ['setup', 'plugins'] + existing_plugins,
-                compose_config,
-                capture_output=False,
-                debug=debug,
-                _subprocess=True,
-            )
-        )
-        if not setup_success:
-            return False, f"Failed to setup plugins for project '{project_name}':\n{setup_msg}"
+                setup_success, setup_msg = (
+                    run_mrsm_command(
+                        ['setup', 'plugins'] + existing_plugins,
+                        compose_config,
+                        capture_output=False,
+                        debug=debug,
+                        _subprocess=True,
+                    )
+                )
+                if not setup_success:
+                    return False, f"Failed to setup plugins for project '{project_name}':\n{setup_msg}"
 
     return True, f"Finished initializing project '{project_name}'."
 

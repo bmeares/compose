@@ -54,6 +54,9 @@ def _do_subaction(
             _original_subaction_functions['default']
         )
     )
+    if subaction == 'init':
+        success, msg = subaction_function({}, debug=debug, **kwargs)
+        return success, msg
 
     compose_config = init(debug=debug, **kwargs) if subaction != 'init' else {}
     config = (
