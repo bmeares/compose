@@ -106,25 +106,63 @@ def _compose_up(
         if pipe.temporary:
             info(f"{pipe} is temporary, will not modify registration.")
         elif not pipe_is_registered:
-            info(f"Registering {pipe}...")
-            success, msg = run_mrsm_command(
-                [
-                    'register', 'pipes',
-                    '-c', str(pipe.connector_keys),
-                    '-m', str(pipe.metric_key),
-                    '-l', str(pipe.location_key),
-                    '-i', str(pipe.instance_keys),
-                    '--params', json.dumps(pipe.parameters, separators=(',', ':')),
-                    '--noask',
-                ] + no_daemon_flags,
-                compose_config,
-                capture_output=False,
-                debug=debug,
-                _replace=False,
-                _subprocess=False,
-            )
-            if not success:
-                warn(f"Failed to register {pipe}.", stack=False)
+            ### Clear any stale local cache (e.g. pipe id) from a prior registration.
+            try:
+                pipe._invalidate_cache(hard=True, debug=debug)
+            except Exception as e:
+                if debug:
+                    dprint(f"Failed to invalidate cache for {pipe}: {e}")
+
+            ### The pipe may already exist under a different project's tag.
+            ### In that case, merge tags + parameters instead of re-registering.
+            existing_id = None
+            try:
+                existing_id = remote_pipe.get_id(debug=debug)
+            except Exception as e:
+                if debug:
+                    dprint(f"Could not check remote id for {pipe}: {e}")
+
+            if existing_id is not None:
+                info(
+                    f"{pipe} already exists on '{pipe.instance_keys}'; "
+                    f"adding tag '{project_name}'..."
+                )
+                try:
+                    fresh_remote_params = remote_pipe.get_parameters(refresh=True, debug=debug) or {}
+                except Exception:
+                    fresh_remote_params = remote_parameters or {}
+                existing_tags = list((fresh_remote_params or {}).get('tags', []) or [])
+                local_tags = list((pipe.parameters or {}).get('tags', []) or [])
+                merged_tags = list(dict.fromkeys(existing_tags + local_tags))
+                merged_params = dict(pipe.parameters or {})
+                merged_params['tags'] = merged_tags
+                remote_pipe.parameters = merged_params
+                try:
+                    success, msg = remote_pipe.edit(debug=debug)
+                except Exception as e:
+                    success, msg = False, str(e)
+                if not success:
+                    warn(f"Failed to add tag '{project_name}' to {pipe}:\n{msg}", stack=False)
+            else:
+                info(f"Registering {pipe}...")
+                success, msg = run_mrsm_command(
+                    [
+                        'register', 'pipes',
+                        '-c', str(pipe.connector_keys),
+                        '-m', str(pipe.metric_key),
+                        '-l', str(pipe.location_key),
+                        '-i', str(pipe.instance_keys),
+                        '--params', json.dumps(pipe.parameters, separators=(',', ':')),
+                        '--noask',
+                    ] + no_daemon_flags,
+                    compose_config,
+                    capture_output=False,
+                    debug=debug,
+                    _replace=False,
+                    _subprocess=False,
+                )
+                if not success:
+                    warn(f"Failed to register {pipe}.", stack=False)
             updated_registration = True
 
         ### Check the remote parameters against the specified parameters in the YAML.
@@ -138,6 +176,11 @@ def _compose_up(
             ### Editing with `--params` in a subprocess only patches,
             ### so instead replace the parameters dictionary directly.
             info(f"Updating parameters for {pipe}...")
+            try:
+                pipe._invalidate_cache(hard=True, debug=debug)
+            except Exception as e:
+                if debug:
+                    dprint(f"Failed to invalidate cache for {pipe}: {e}")
             success, msg = pipe.edit(debug=debug)
             if not success:
                 warn(f"Failed to edit {pipe}.", stack=False)
