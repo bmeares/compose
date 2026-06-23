@@ -48,15 +48,21 @@ def _compose_default(
                 continue
             isolated_sysargs.append(arg)
 
-    ### Always run passthrough commands in a SUBPROCESS. In-process execution cannot
-    ### reliably redirect Meerschaum's import-time path resolution (notably the venvs
-    ### dir): re-pointing the root mid-process does not move where `install required` /
-    ### `setup plugins` write, so they land in the HOST's `~/.config/meerschaum/venvs`
-    ### instead of the project's `root/venvs` (the package installs, but the project
-    ### venvs stay empty). A fresh subprocess reads the compose env (absolute
-    ### MRSM_ROOT_DIR) at import, so paths/venvs resolve under the project root — this is
-    ### also how `compose init` already installs deps correctly.
-    _subprocess = True
+    ### Run in a SUBPROCESS only for commands that WRITE to venvs (`install`, `setup`).
+    ### In-process execution cannot redirect Meerschaum's import-time path resolution
+    ### (notably the venvs dir): re-pointing the root mid-process does not move where
+    ### `install required` / `setup plugins` write, so in-process they land in the HOST's
+    ### `~/.config/meerschaum/venvs` instead of the project's `root/venvs` (the package
+    ### installs, but the project venvs stay empty). A fresh subprocess reads the compose
+    ### env (absolute MRSM_ROOT_DIR) at import, so venvs resolve under the project root.
+    ### Everything else runs in-process per the configured isolation (much faster — no
+    ### per-command interpreter spin-up); the shell (no action) still needs a subprocess.
+    _venv_writing_actions = {'install', 'setup'}
+    _subprocess = (
+        (compose_config.get('isolation', None) == 'subprocess')
+        or (not action)
+        or (action[0] in _venv_writing_actions)
+    )
     if action:
         info(f"Running '{' '.join(action)}' in compose project '{project_name}'...")
 
