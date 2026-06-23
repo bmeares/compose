@@ -125,6 +125,15 @@ def _do_subaction(
     if need_unload:
         if debug:
             dprint("Compose: Loading back existing plugins.")
+        ### The `with replace_env(env)` block above restored the previous root, but the
+        ### `plugins` package object lingers in `sys.modules` with a `__path__` still
+        ### pointing at the project's `.internal/plugins`. Loading back the existing
+        ### plugins would then re-discover the project plugins under the restored
+        ### (host) scope — re-importing them with `PLUGINS_RESOURCES_PATH` pointing
+        ### elsewhere, so a plugin doing `from_plugin_import` of a sibling fails with
+        ### "Unable to import plugin 'X'". Pop the stale package so the reload rebuilds
+        ### it against the restored scope (mirrors the pre-`replace_env` pop above).
+        _ = sys.modules.pop('plugins', None)
         if old_plugins_to_unload:
             load_plugins(debug=debug)
     return success, msg
