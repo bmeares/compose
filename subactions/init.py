@@ -119,9 +119,16 @@ def _compose_init(
     if existing_plugins:
         with replace_config(config):
             with replace_env(env):
+                ### Do NOT scope to `existing_plugins`: that list is discovered IN-PROCESS
+                ### (get_installed_plugins), where the already-imported paths/plugins module
+                ### doesn't pick up the compose MRSM_PLUGINS_DIR, so it only finds the
+                ### internal `compose` plugin — scoping the install to it skips every
+                ### project plugin (e.g. mqtt-connector → paho is never installed). Run
+                ### `install required` / `setup plugins` UNSCOPED so the subprocess (which
+                ### reads the absolute compose env at import) discovers all project plugins.
                 install_required_success, install_required_msg = (
                     run_mrsm_command(
-                        ['install', 'required'] + existing_plugins,
+                        ['install', 'required'],
                         compose_config,
                         capture_output=False,
                         debug=debug,
@@ -137,7 +144,7 @@ def _compose_init(
 
                 setup_success, setup_msg = (
                     run_mrsm_command(
-                        ['setup', 'plugins'] + existing_plugins,
+                        ['setup', 'plugins'],
                         compose_config,
                         capture_output=False,
                         debug=debug,

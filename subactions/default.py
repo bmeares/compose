@@ -48,13 +48,17 @@ def _compose_default(
                 continue
             isolated_sysargs.append(arg)
 
-    ### Just launch a subprocess for the shell.
-    ### It's too much of a hassle otherwise.
-    _subprocess = compose_config.get('isolation', None) == 'subprocess'
+    ### Always run passthrough commands in a SUBPROCESS. In-process execution cannot
+    ### reliably redirect Meerschaum's import-time path resolution (notably the venvs
+    ### dir): re-pointing the root mid-process does not move where `install required` /
+    ### `setup plugins` write, so they land in the HOST's `~/.config/meerschaum/venvs`
+    ### instead of the project's `root/venvs` (the package installs, but the project
+    ### venvs stay empty). A fresh subprocess reads the compose env (absolute
+    ### MRSM_ROOT_DIR) at import, so paths/venvs resolve under the project root — this is
+    ### also how `compose init` already installs deps correctly.
+    _subprocess = True
     if action:
         info(f"Running '{' '.join(action)}' in compose project '{project_name}'...")
-    else:
-        _subprocess = True
 
     success, msg = run_mrsm_command(
         isolated_sysargs,
