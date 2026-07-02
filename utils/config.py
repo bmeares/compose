@@ -352,6 +352,17 @@ def get_dir_paths(compose_config: Dict[str, Any], dir_name: str) -> List[pathlib
     return unique_paths
 
 
+def _resolve_abs(path_str: str, base_dir: pathlib.Path) -> str:
+    """
+    Resolve a (possibly relative) path string to an absolute POSIX path.
+    Relative values are resolved against `base_dir`, not the current CWD.
+    """
+    path = pathlib.Path(path_str)
+    if not path.is_absolute():
+        path = base_dir / path
+    return path.resolve().as_posix()
+
+
 def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:
     """
     Return a dictionary of environment variables.
@@ -399,6 +410,48 @@ def get_env_dict(compose_config: Dict[str, Any]) -> Dict[str, Any]:
 
     if compose_config.get('environment', None):
         env_dict.update(compose_config['environment'])
+
+    ### Ensure Meerschaum's directory env vars are ABSOLUTE paths.
+    ### `get_dir_paths()` already resolves `root_dir`/`plugins_dir` to absolute, but a
+    ### relative value in an `environment:` block (e.g. `MRSM_PLUGINS_DIR: "./plugins"`)
+    ### or in `.env` clobbers them via the `update()` above. A daemon or subprocess job
+    ### does NOT necessarily inherit the compose file's CWD (a Meerschaum daemon's
+    ### working directory is its root dir), so a relative plugins dir then resolves to
+    ### the wrong place and plugin imports fail with "No module named 'plugins.<name>'".
+    ### This applies to EVERY path-valued env var Meerschaum reads (root, config_dir,
+    ### plugins, venvs, work_dir) — drive the list off STATIC_CONFIG so it tracks
+    ### Meerschaum rather than a hardcoded pair. JSON (MRSM_CONFIG/MRSM_PATCH) and mode
+    ### vars (MRSM_RUNTIME) are intentionally excluded. Resolve relative values against
+    ### the compose file's directory (the same base `get_dir_paths()` uses).
+    from meerschaum.config.static import STATIC_CONFIG
+    env_keys = STATIC_CONFIG['environment']
+    dir_env_vars = [
+        env_keys[name]
+        for name in ('root', 'config_dir', 'plugins', 'venvs', 'work_dir')
+        if name in env_keys
+    ]
+    compose_file_path = compose_config.get('__file__', None)
+    base_dir = (
+        compose_file_path.parent
+        if isinstance(compose_file_path, pathlib.Path)
+        else pathlib.Path(os.getcwd())
+    )
+    for dir_key in dir_env_vars:
+        val = env_dict.get(dir_key, None)
+        if not val or not isinstance(val, str):
+            continue
+        ### `plugins` may be a JSON list of paths; the rest are single paths.
+        if val.lstrip().startswith('['):
+            try:
+                rel_paths = json.loads(val)
+            except Exception:
+                continue
+            env_dict[dir_key] = json.dumps(
+                [_resolve_abs(path_str, base_dir) for path_str in rel_paths],
+                separators=(',', ':'),
+            )
+        else:
+            env_dict[dir_key] = _resolve_abs(val, base_dir)
 
     none_keys = [key for key, val in env_dict.items() if val is None]
     for key in none_keys:
